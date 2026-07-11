@@ -1,3 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">KiloMetrix</string>
+
+    <!-- ── Onboarding ──────────────────────────────────────────────────────── -->
+    <string name="onboarding_skip">Saltar</string>
+    <string name="onboarding_next">Siguiente</string>
+    <string name="onboarding_start">Comenzar ahora</string>
+    <string name="onboarding_have_account">¿Ya tienes cuenta?</string>
+    <string name="onboarding_login_link">Inicia sesión</string>
+
+    <string name="onboarding_slide1_title">¿Sabes cuánto ganas por hora?</string>
+    <string name="onboarding_slide1_body">KiloMetrix calcula tus ingresos reales descontando gasolina, mantenimiento y tiempo. La mayoría de conductores no conoce este número.</string>
+
+    <string name="onboarding_slide2_title">Compara tus plataformas</string>
+    <string name="onboarding_slide2_body">Descubre en segundos cuál entre Uber, Didi o InDrive te paga mejor hora por hora. El consumo de combustible se calcula automáticamente de forma aproximada para que veas tu ganancia real.</string>
+
+    <string name="onboarding_slide3_title">Cuida tu vehículo</string>
+    <string name="onboarding_slide3_body">Alertas de mantenimiento por kilometraje real — no por fechas arbitrarias. Nunca más se te pase un cambio de aceite.</string>
+
+    <!-- ── Auth — Login ────────────────────────────────────────────────────── -->
+    <string name="login_title">Bienvenido</string>
+    <string name="login_subtitle">Inicia sesión para continuar</string>
+    <string name="login_email_label">Correo electrónico</string>
+    <string name="login_email_placeholder">tu@correo.com</string>
+    <string name="login_password_label">Contraseña</string>
+    <string name="login_password_placeholder">Tu contraseña</string>
+    <string name="login_forgot_password">¿Olvidaste tu contraseña?</string>
+    <string name="login_button">Iniciar sesión</string>
+    <string name="login_no_account">¿No tienes cuenta?</string>
+    <string name="login_register_link">Crear cuenta</string>
+
+    <!-- ── Auth — Register ────────────────────────────────────────────────── -->
+    <string name="register_title">Crear cuenta</string>
+    <string name="register_subtitle">Empieza a conocer tus números reales como conductor.</string>
+    <string name="register_back">Atrás</string>
+    <string name="register_name_label">Nombre completo</string>
+    <string name="register_name_placeholder">Carlos Rodríguez</string>
+    <string name="register_email_label">Correo electrónico</string>
+    <string name="register_email_placeholder">tu@correo.com</string>
+    <string name="register_password_label">Contraseña</string>
+    <string name="register_password_placeholder">Mínimo 8 caracteres</string>
+    <string name="register_terms">Acepto los Términos y Condiciones y la Política de Privacidad.</string>
+    <string name="register_button">Crear mi cuenta</string>
+    <string name="register_have_account">¿Ya tienes cuenta?</string>
+    <string name="register_login_link">Inicia sesión</string>
+
+    <!-- ── Auth — Verify Email ────────────────────────────────────────────── -->
+    <string name="verify_title">Verifica tu correo</string>
+    <string name="verify_subtitle">Enviamos un código de 6 dígitos a</string>
+    <string name="verify_button">Verificar</string>
+    <string name="verify_resend">Reenviar código</string>
+    <string name="verify_expiry">El código expira en 15 minutos</string>
+
+    <!-- ── Auth — Forgot Password ─────────────────────────────────────────── -->
+    <string name="forgot_title">Recuperar contraseña</string>
+    <string name="forgot_subtitle">Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.</string>
+    <string name="forgot_email_label">Correo electrónico</string>
+    <string name="forgot_email_placeholder">tu@correo.com</string>
+    <string name="forgot_button">Enviar enlace de recuperación</string>
+    <string name="forgot_back_login">Volver a iniciar sesión</string>
+    <string name="forgot_success_title">¡Correo enviado!</string>
+    <string name="forgot_success_body">Revisa tu bandeja de entrada. El enlace expira en 30 minutos.</string>
+
+    <!-- ── Setup Wizard ───────────────────────────────────────────────────── -->
+    <string name="setup_step_label">PASO %1$d DE %2$d</string>
+    <string name="setup_next">Siguiente</string>
+    <string name="setup_finish">Comenzar a usar KiloMetrix</string>
+    <string name="setup_skip">Configurar después</string>
+
+    <!-- Step 1 — City -->
+    <string name="setup_city_title">¿En qué ciudad conduces?</string>
+    <string name="setup_city_subtitle">Para calcular tu Pico y Placa correctamente</string>
+    <string name="setup_city_search_placeholder">Buscar tu ciudad o municipio…</string>
+    <string name="setup_city_search_hint">Encuentra tu ciudad para personalizar tu Pico y Placa</string>
+
+    <!-- Step 2 — Vehicle -->
+    <string name="setup_vehicle_title">Tu vehículo</string>
+    <string name="setup_vehicle_subtitle">Información básica de tu vehículo de trabajo</string>
+    <string name="setup_vehicle_type_label">Tipo de vehículo</string>
+    <string name="setup_vehicle_type_car">Automóvil</string>
+    <string name="setup_vehicle_type_moto">Moto</string>
+    <string name="setup_vehicle_type_van">Van</string>
+    <string name="setup_vehicle_nickname_label">Apodo</string>
+    <string name="setup_vehicle_nickname_placeholder">Mi Spark, La Honda…</string>
+    <string name="setup_vehicle_brand_label">Marca</string>
+    <string name="setup_vehicle_brand_placeholder">Chevrolet, Honda, BYD…</string>
+    <string name="setup_vehicle_model_label">Modelo</string>
+    <string name="setup_vehicle_model_placeholder">Spark…</string>
+    <string name="setup_vehicle_year_label">Año</string>
+    <string name="setup_vehicle_year_placeholder">2020</string>
+    <string name="setup_vehicle_plate_label">Placa (opcional)</string>
+    <string name="setup_vehicle_plate_placeholder">ABC 123</string>
+    <string name="setup_vehicle_fuel_label">Combustible</string>
+    <string name="setup_vehicle_fuel_gasoline">Gasolina</string>
+    <string name="setup_vehicle_fuel_diesel">Diesel</string>
+    <string name="setup_vehicle_fuel_glp">GLP</string>
+    <string name="setup_vehicle_fuel_gnv">GNV</string>
+    <string name="setup_vehicle_fuel_electric">Eléctrico</string>
+
+    <!-- Step 3 — Documents -->
+    <string name="setup_docs_title">Documentos del vehículo</string>
+    <string name="setup_docs_subtitle">Registra fechas de vencimiento para recibir alertas</string>
+    <string name="setup_docs_soat">SOAT</string>
+    <string name="setup_docs_tecnomecanica">Tecno-mecánica</string>
+    <string name="setup_docs_seguro">Seguro Todo Riesgo</string>
+    <string name="setup_docs_purchase_date">Fecha compra</string>
+    <string name="setup_docs_expiry_date">Vencimiento</string>
+    <string name="setup_docs_date_placeholder">DD/MM/AAAA</string>
+
+    <!-- Step 4 — Platforms -->
+    <string name="setup_platforms_title">¿En qué plataformas trabajas?</string>
+    <string name="setup_platforms_subtitle">Selecciona las plataformas donde generas ingresos</string>
+    <string name="platform_uber">Uber</string>
+    <string name="platform_didi">Didi</string>
+    <string name="platform_indrive">InDrive</string>
+    <string name="platform_cabify">Cabify</string>
+    <string name="platform_rappi">Rappi</string>
+    <string name="platform_yango">Yango Pro</string>
+
+    <!-- ── Main App — Navigation ──────────────────────────────────────────── -->
+    <string name="nav_home">Inicio</string>
+    <string name="nav_transactions">Registro</string>
+    <string name="nav_vehicle">Vehículo</string>
+    <string name="nav_analytics">Análisis</string>
+    <string name="nav_profile">Perfil</string>
+
+    <!-- ── Home Screen ────────────────────────────────────────────────────── -->
+    <string name="home_greeting">Buenas tardes, %1$s 👋</string>
+    <string name="home_earnings_label">GANANCIA NETA HOY</string>
+    <string name="home_earnings_empty">0 transacciones registradas hoy</string>
+    <string name="home_start_day_title">¿Empezar tu día?</string>
+    <string name="home_start_day_body">Registra tu km inicial para que al final del día la IA te dé un análisis completo de tu jornada.</string>
+    <string name="home_start_day_button">Iniciar día</string>
+    <string name="home_ai_analysis_title">Análisis IA del día</string>
+    <string name="home_ai_analysis_empty">Cuando registres tu primera transacción del día, te genero el resumen con IA. Mientras tanto, ¡buen viaje!</string>
+    <string name="home_pico_placa_label">Pico y Placa · Toca para ver detalles</string>
+    <string name="home_pico_exempt">Exento — Ciudad sin pico y placa registrado</string>
+
+    <!-- ── Transactions Screen ────────────────────────────────────────────── -->
+    <string name="transactions_title">Transacciones</string>
+    <string name="transactions_period_day">Día</string>
+    <string name="transactions_period_week">Semana</string>
+    <string name="transactions_period_month">Mes</string>
+    <string name="transactions_today">Hoy</string>
+    <string name="transactions_empty_title">Sin transacciones en este período</string>
+    <string name="transactions_empty_body">Registra tu primer ingreso o gasto para empezar a ver tus números.</string>
+    <string name="transactions_register_button">Registrar ahora</string>
+
+    <!-- ── Vehicle Screen ─────────────────────────────────────────────────── -->
+    <string name="vehicle_title">Mis vehículos</string>
+    <string name="vehicle_stat_km">km en 30 días</string>
+    <string name="vehicle_stat_expense">gasto mes</string>
+    <string name="vehicle_stat_docs">sin docs</string>
+    <string name="vehicle_docs_label">DOCUMENTOS</string>
+    <string name="vehicle_docs_add">+ Agregar</string>
+    <string name="vehicle_doc_no_record">Sin registro · toca para agregar</string>
+
+    <!-- ── Analytics Screen ───────────────────────────────────────────────── -->
+    <string name="analytics_title">Análisis</string>
+    <string name="analytics_income_label">INGRESOS DEL MES</string>
+    <string name="analytics_expense_label">GASTOS</string>
+    <string name="analytics_net_label">GANANCIA NETA</string>
+    <string name="analytics_expense_ratio_label">RATIO DE GASTOS</string>
+    <string name="analytics_expense_ratio_detail">de tus ingresos en gastos</string>
+    <string name="analytics_excellent">Excelente — estás reteniendo más del 70%% de tus ingresos</string>
+    <string name="analytics_tab_summary">Resumen</string>
+    <string name="analytics_tab_platforms">Plataformas</string>
+    <string name="analytics_tab_expenses">Gastos</string>
+    <string name="analytics_tab_history">Histórico</string>
+
+    <!-- ── Profile Screen ────────────────────────────────────────────────── -->
+    <string name="profile_driver_data_label">DATOS DEL CONDUCTOR</string>
+    <string name="profile_name_label">Nombre</string>
+    <string name="profile_email_label">Email</string>
+    <string name="profile_country_label">País</string>
+    <string name="profile_currency_label">Moneda</string>
+    <string name="profile_plan_free">Plan Gratuito</string>
+    <string name="profile_income_split_label">SEPARACIÓN DE INGRESOS</string>
+    <string name="profile_income_split_desc">Separa automáticamente un %% de cada ingreso para mantenimiento y ahorro.</string>
+    <string name="profile_maintenance_label">Mantenimiento</string>
 </resources>

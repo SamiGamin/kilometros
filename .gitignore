@@ -13,3 +13,17 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Keystore and signing keys
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+
+# Local configuration files
+.env
+.env.*
+.env.local
+
+# Firebase configurations (if you want to keep your project configurations private)
+# google-services.json

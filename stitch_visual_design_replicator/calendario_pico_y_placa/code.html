@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Calendario Pico y Placa</title>
+<!-- Plus Jakarta Sans Font -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            'surface': '#0b1326',
+            'surface-dim': '#0b1326',
+            'surface-bright': '#31394d',
+            'surface-container-low': '#131b2e',
+            'surface-container-lowest': '#060e20',
+            'accent-green': '#10b981', // emerald-500 approx
+            'accent-red': '#7f1d1d', // dark red for restricted
+            'accent-yellow': '#854d0e', // holiday yellow
+            'active-green': '#00ffa3',
+          },
+          borderRadius: {
+            '8': '8px',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-styling">
+    body {
+      background-color: #0b1326;
+      color: #ffffff;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Specific calendar cell sizing for grid alignment */
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+    .calendar-day {
+      aspect-ratio: 1 / 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body class="font-sans antialiased">
+<!-- BEGIN: MainHeader -->
+<header class="sticky top-0 z-10 bg-surface px-4 py-4 flex items-center justify-between border-b border-white/5">
+<button aria-label="Volver" class="p-2 hover:bg-white/10 rounded-full">
+<svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><line x1="18" x2="6" y1="6" y2="18"></line><line x1="6" x2="18" y1="6" y2="18"></line></svg>
+</button>
+<h1 class="text-xl font-bold">Calendario Pico y Placa</h1>
+<div class="w-10"></div> <!-- Spacer for centering title -->
+</header>
+<!-- END: MainHeader -->
+<main class="p-4 space-y-6">
+<!-- BEGIN: LocationSelector -->
+<section class="bg-surface-container-low p-4 rounded-8 border border-white/5 shadow-lg" data-purpose="location-card">
+<div class="flex items-start gap-3">
+<div class="mt-1 text-gray-400">
+<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+</div>
+<div class="flex-1">
+<div class="flex items-center gap-2">
+<span class="text-lg font-semibold">Bogotá D.C.</span>
+<span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">Pico y Placa</span>
+</div>
+<p class="text-sm text-gray-400">Cundinamarca</p>
+</div>
+<div class="self-center">
+<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="20" xmlns="http://www.w3.org/2000/svg"><polyline points="6 9 12 15 18 9"></polyline></svg>
+</div>
+</div>
+</section>
+<!-- END: LocationSelector -->
+<div class="text-sm text-gray-400">
+      u · 8 · termina en 8
+    </div>
+<!-- BEGIN: MonthNavigation -->
+<div class="flex items-center justify-between px-4 py-2">
+<button class="p-2 text-white"><svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="24" xmlns="http://www.w3.org/2000/svg"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+<h2 class="text-lg font-bold tracking-widest uppercase">Julio 2026</h2>
+<button class="p-2 text-white"><svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="24" xmlns="http://www.w3.org/2000/svg"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+</div>
+<!-- END: MonthNavigation -->
+<!-- BEGIN: DayNightToggle -->
+<div class="grid grid-cols-2 p-1 bg-surface-container-low rounded-8">
+<button class="flex items-center justify-center gap-2 py-3 bg-active-green text-black font-bold rounded-8">
+<svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="5"></circle><line x1="12" x2="12" y1="1" y2="3"></line><line x1="12" x2="12" y1="21" y2="23"></line><line x1="4.22" x2="5.64" y1="4.22" y2="5.64"></line><line x1="18.36" x2="19.78" y1="18.36" y2="19.78"></line><line x1="1" x2="3" y1="12" y2="12"></line><line x1="21" x2="23" y1="12" y2="12"></line><line x1="4.22" x2="5.64" y1="19.78" y2="18.36"></line><line x1="18.36" x2="19.78" y1="5.64" y2="4.22"></line></svg>
+        Día
+      </button>
+<button class="flex items-center justify-center gap-2 py-3 text-gray-400 font-bold">
+<svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        Noche
+      </button>
+</div>
+<!-- END: DayNightToggle -->
+<!-- BEGIN: CalendarGrid -->
+<div class="calendar-grid text-center">
+<!-- Week headers -->
+<div class="text-[10px] text-gray-500 font-bold">L</div>
+<div class="text-[10px] text-gray-500 font-bold">M</div>
+<div class="text-[10px] text-gray-500 font-bold">M</div>
+<div class="text-[10px] text-gray-500 font-bold">J</div>
+<div class="text-[10px] text-gray-500 font-bold">V</div>
+<div class="text-[10px] text-gray-500 font-bold">S</div>
+<div class="text-[10px] text-gray-500 font-bold">D</div>
+<!-- Days Row 1 -->
+<div class="calendar-day text-gray-700">29</div>
+<div class="calendar-day text-gray-700">30</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">1</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">2</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">3</div>
+<div class="calendar-day bg-slate-800/50 text-emerald-400">4</div>
+<div class="calendar-day bg-slate-800/50 text-emerald-400">5</div>
+<!-- Row 2 -->
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">6</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">7</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">8</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">9</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">10</div>
+<!-- Today Item -->
+<div class="calendar-day bg-slate-800/50 text-emerald-400 border-2 border-emerald-500 relative">
+        11
+        <span class="absolute bottom-1 text-[7px] font-bold">HOY</span>
+</div>
+<div class="calendar-day bg-slate-800/50 text-emerald-400">12</div>
+<!-- Row 3 -->
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">13</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">14</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">15</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">16</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">17</div>
+<div class="calendar-day bg-slate-800/50 text-emerald-400">18</div>
+<div class="calendar-day bg-slate-800/50 text-emerald-400">19</div>
+<!-- Row 4 -->
+<div class="calendar-day bg-yellow-900/40 text-yellow-500 border border-yellow-700/50 relative">
+        20
+        <span class="absolute bottom-1 text-[7px] font-bold">FES</span>
+</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">21</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">22</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">23</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">24</div>
+<div class="calendar-day bg-slate-800/50 text-emerald-400">25</div>
+<div class="calendar-day bg-slate-800/50 text-emerald-400">26</div>
+<!-- Row 5 -->
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">27</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">28</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">29</div>
+<div class="calendar-day bg-emerald-950/40 text-emerald-400 border border-emerald-900/50">30</div>
+<div class="calendar-day bg-red-950/40 text-red-400 border border-red-900/50">31</div>
+<div class="calendar-day text-gray-700">1</div>
+<div class="calendar-day text-gray-700">2</div>
+</div>
+<!-- END: CalendarGrid -->
+<!-- BEGIN: InfoCard -->
+<section class="bg-surface-container-low border border-blue-900/30 p-4 rounded-8">
+<div class="flex gap-2">
+<span class="text-yellow-500 text-lg">💡</span>
+<p class="text-xs text-gray-300 leading-relaxed">
+          Tu placa termina en 8. En Bogotá D.C., los días marcados en rojo no puedes circular durante: 6:00–9:00 y 15:00–21:00. En festivos no aplica restricción.
+        </p>
+</div>
+</section>
+<!-- END: InfoCard -->
+<!-- BEGIN: Legend -->
+<footer class="pt-4 space-y-4">
+<div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Leyenda</div>
+<div class="flex gap-4 text-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+<span>Día libre</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+<span>Restringido</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+<span>Festivo</span>
+</div>
+</div>
+<div class="space-y-1">
+<div class="flex items-start gap-2 text-[10px] text-gray-500">
+<span class="text-yellow-500 mt-0.5">⚠️</span>
+<p>
+            Las normas pueden cambiar. Verifica con tu secretaría de movilidad local antes de tomar decisiones operativas.
+          </p>
+</div>
+<a class="text-[10px] text-gray-600 block pl-5 underline" href="https://www.movilidadbogota.gov.co">
+          https://www.movilidadbogota.gov.co
+        </a>
+</div>
+</footer>
+<!-- END: Legend -->
+</main>
+<!-- Bottom Navigation Bar Placeholder for Mobile look -->
+<div class="fixed bottom-1 left-1/2 -translate-x-1/2 w-1/3 h-1 bg-white/20 rounded-full mb-1"></div>
+</body></html>
