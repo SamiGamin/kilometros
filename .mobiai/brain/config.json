@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "project_name": "kilometros",
+  "project_type": "android",
+  "platforms": [
+    "android"
+  ],
+  "rules": [
+    "Usar Kotlin y Jetpack Compose con Material 3",
+    "Seguir Clean Architecture y MVVM estrictamente",
+    "Uso obligatorio de Use Cases y Repository Pattern",
+    "Manejo de estado inmutable (Immutable UI state) con StateFlow",
+    "Uso de Hilt para inyección de dependencias",
+    "Uso exclusivo de Firebase como Backend (sin backend externo)"
+  ],
+  "created_at": "2026-07-11T22:42:29Z",
+  "updated_at": "2026-07-11T22:46:43Z"
+}
