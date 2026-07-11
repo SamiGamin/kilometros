@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Registro y Verificación</title>
+<!-- Tailwind CSS v3 with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Custom Tailwind Configuration -->
+<script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'app-dark': '#0b1120',
+            'app-card': '#161e2e',
+            'app-blue': '#1d4ed8', // Custom blue for buttons matching the screenshot
+            'app-text-muted': '#94a3b8',
+          }
+        }
+      }
+    }
+  </script>
+<!-- Styles for specific UI elements -->
+<style data-purpose="custom-styling">
+    body {
+      background-color: #0b1120; /* Deep dark background */
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    input::placeholder {
+      color: #64748b;
+    }
+    /* Hide scrollbar for clean mobile view */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-blue-500/30">
+<!-- BEGIN: MainContainer -->
+<main class="min-h-screen flex flex-col items-center justify-start p-6 max-w-md mx-auto" id="app-container">
+<!-- BEGIN: Screen1_Registration -->
+<section class="w-full flex flex-col" data-purpose="registration-form" id="registration-screen">
+<!-- Back Header -->
+<div class="flex items-center mb-10 mt-4">
+<button class="flex items-center text-app-text-muted hover:text-white transition-colors">
+<svg class="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M10 19l-7-7m0 0l7-7m-7 7h18" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-sm font-medium">Atrás</span>
+</button>
+</div>
+<!-- Title & Description -->
+<div class="mb-8">
+<h1 class="text-3xl font-bold mb-3">Crear cuenta</h1>
+<p class="text-app-text-muted text-lg leading-relaxed">
+          Empieza a conocer tus números reales como conductor.
+        </p>
+</div>
+<!-- Form Fields -->
+<form class="space-y-6" onsubmit="event.preventDefault(); showVerificationScreen();">
+<!-- Name Field -->
+<div data-purpose="field-container">
+<label class="block text-sm font-medium mb-2" for="name">Nombre completo</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 flex items-center pl-4 text-app-text-muted">
+<svg class="h-5 w-5" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" fill-rule="evenodd"></path>
+</svg>
+</span>
+<input class="w-full bg-app-card border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-app-blue text-white h-14" id="name" placeholder="Carlos Rodríguez" type="text"/>
+</div>
+</div>
+<!-- Email Field -->
+<div data-purpose="field-container">
+<label class="block text-sm font-medium mb-2" for="email">Correo electrónico</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 flex items-center pl-4 text-app-text-muted">
+<svg class="h-5 w-5" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+<path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+<path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+</svg>
+</span>
+<input class="w-full bg-app-card border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-app-blue text-white h-14" id="email" placeholder="tu@correo.com" type="email"/>
+</div>
+</div>
+<!-- Password Field -->
+<div data-purpose="field-container">
+<label class="block text-sm font-medium mb-2" for="password">Contraseña</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 flex items-center pl-4 text-app-text-muted">
+<svg class="h-5 w-5" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" fill-rule="evenodd"></path>
+</svg>
+</span>
+<input class="w-full bg-app-card border-none rounded-2xl py-4 pl-12 pr-12 focus:ring-2 focus:ring-app-blue text-white h-14" id="password" placeholder="Mínimo 8 caracteres" type="password"/>
+<button class="absolute inset-y-0 right-0 flex items-center pr-4 text-app-text-muted" type="button">
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</div>
+<!-- Terms and Conditions -->
+<div class="flex items-start mt-6 space-x-3">
+<div class="flex items-center h-5">
+<input class="h-6 w-6 rounded border-gray-600 bg-transparent text-app-blue focus:ring-app-blue focus:ring-offset-0" id="terms" type="checkbox"/>
+</div>
+<label class="text-sm leading-snug" for="terms">
+            Acepto los <a class="text-blue-500 underline" href="#">Términos y Condiciones</a> y la <a class="text-blue-500 underline" href="#">Política de Privacidad</a>. Autorizo el tratamiento de mis datos conforme a la Ley 1581 de 2012 de Colombia.
+          </label>
+</div>
+<!-- Submit Button -->
+<button class="w-full bg-app-blue text-white font-semibold py-4 rounded-2xl shadow-lg hover:bg-blue-600 transition-colors mt-8 h-16" type="submit">
+          Crear mi cuenta
+        </button>
+<!-- Footer Link -->
+<div class="text-center mt-6">
+<p class="text-app-text-muted">
+            ¿Ya tienes cuenta? <a class="text-blue-500 font-semibold" href="#">Inicia sesión</a>
+</p>
+</div>
+</form>
+</section>
+<!-- END: Screen1_Registration -->
+<!-- BEGIN: Screen2_Verification -->
+<section class="w-full hidden flex flex-col items-center pt-20" data-purpose="verification-code-input" id="verification-screen">
+<!-- Icon Container -->
+<div class="mb-10 p-6 bg-[#1e293b] rounded-full relative">
+<div class="p-4 bg-app-card rounded-full shadow-inner">
+<svg class="h-10 w-10 text-white" fill="currentColor" viewbox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+<path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+<path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+</svg>
+</div>
+</div>
+<!-- Text -->
+<h2 class="text-2xl font-bold mb-4">Verifica tu correo</h2>
+<p class="text-center text-app-text-muted mb-1 text-sm">Enviamos un codigo de 6 digitos a</p>
+<p class="text-center text-blue-500 font-medium mb-10">salito1405@gmail.com</p>
+<!-- Code Input Grid -->
+<div class="flex justify-between w-full max-w-sm mb-10 gap-2">
+<input class="w-12 h-16 bg-app-card border-none rounded-xl text-center text-2xl font-bold focus:ring-2 focus:ring-app-blue" maxlength="1" type="text"/>
+<input class="w-12 h-16 bg-app-card border-none rounded-xl text-center text-2xl font-bold focus:ring-2 focus:ring-app-blue" maxlength="1" type="text"/>
+<input class="w-12 h-16 bg-app-card border-none rounded-xl text-center text-2xl font-bold focus:ring-2 focus:ring-app-blue" maxlength="1" type="text"/>
+<input class="w-12 h-16 bg-app-card border-none rounded-xl text-center text-2xl font-bold focus:ring-2 focus:ring-app-blue" maxlength="1" type="text"/>
+<input class="w-12 h-16 bg-app-card border-none rounded-xl text-center text-2xl font-bold focus:ring-2 focus:ring-app-blue" maxlength="1" type="text"/>
+<input class="w-12 h-16 bg-app-card border-none rounded-xl text-center text-2xl font-bold focus:ring-2 focus:ring-app-blue" maxlength="1" type="text"/>
+</div>
+<!-- Action Button -->
+<button class="w-full bg-app-blue text-white font-semibold py-4 rounded-2xl shadow-lg hover:bg-blue-600 transition-colors mb-8 h-16">
+        Verificar
+      </button>
+<!-- Resend -->
+<button class="text-blue-500 font-semibold mb-8">Reenviar codigo</button>
+<!-- Timer -->
+<p class="text-app-text-muted text-sm">El codigo expira en 15 minutos</p>
+</section>
+<!-- END: Screen2_Verification -->
+</main>
+<!-- END: MainContainer -->
+<!-- BEGIN: FlowLogic -->
+<script data-purpose="screen-switcher">
+    /**
+     * Minimal JavaScript to simulate the transition between screens.
+     */
+    function showVerificationScreen() {
+      const regScreen = document.getElementById('registration-screen');
+      const verScreen = document.getElementById('verification-screen');
+      
+      regScreen.classList.add('hidden');
+      verScreen.classList.remove('hidden');
+      
+      // Focus first input in verification automatically
+      const firstInput = verScreen.querySelector('input');
+      if(firstInput) firstInput.focus();
+    }
+
+    // Auto-focus logic for verification inputs
+    const codeInputs = document.querySelectorAll('#verification-screen input');
+    codeInputs.forEach((input, index) => {
+      input.addEventListener('keyup', (e) => {
+        if (e.target.value.length === 1 && index < codeInputs.length - 1) {
+          codeInputs[index + 1].focus();
+        }
+        if (e.key === 'Backspace' && index > 0 && e.target.value === '') {
+          codeInputs[index - 1].focus();
+        }
+      });
+    });
+  </script>
+<!-- END: FlowLogic -->
+</body></html>

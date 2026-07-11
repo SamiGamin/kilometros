@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>App de Gestión para Conductores</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style data-purpose="custom-layout">
+    body {
+      background-color: #0d121f;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .safe-area-bottom {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .card-dark {
+      background-color: #171f30;
+      border-radius: 1.5rem;
+    }
+    .card-border {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .accent-gradient {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+    .text-muted {
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-24">
+<!-- BEGIN: MainContentContainer -->
+<main class="p-4" id="main-content">
+<!-- BEGIN: Section_Inicio -->
+<section class="tab-content active space-y-6" id="section-inicio">
+<header class="flex justify-between items-center pt-4">
+<div>
+<h1 class="text-xl font-bold">Buenas tardes, Salomon 👋</h1>
+<p class="text-muted text-sm">Sábado 11 De Julio</p>
+</div>
+<div class="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center font-bold text-lg">S</div>
+</header>
+<!-- Earnings Card -->
+<div class="card-dark p-6 space-y-2 border-l-4 border-blue-500 shadow-lg">
+<h2 class="text-muted text-xs uppercase tracking-wider font-semibold">GANANCIA NETA HOY</h2>
+<div class="text-5xl font-bold">$ 0</div>
+<p class="text-muted text-sm">0 transacciones registradas hoy</p>
+</div>
+<!-- Start Day Action Card -->
+<div class="card-dark p-6 text-center space-y-4 border border-green-900/30">
+<div class="text-4xl">🚀</div>
+<h3 class="text-xl font-bold">¿Empezar tu día?</h3>
+<p class="text-muted text-sm px-4">Registra tu km inicial para que al final del día Claude AI te dé un análisis completo de tu jornada.</p>
+<button class="w-full py-4 accent-gradient rounded-2xl font-bold text-lg">Iniciar día</button>
+</div>
+<!-- AI Analysis Card -->
+<div class="card-dark p-6 border border-purple-500/20 relative">
+<div class="flex justify-between items-start mb-4">
+<div class="flex items-center gap-2">
+<span class="text-xl">🤖</span>
+<h3 class="font-bold">Análisis IA del día</h3>
+</div>
+<span class="bg-purple-900/40 text-purple-300 text-xs px-3 py-1 rounded-full border border-purple-500/30 font-medium">✨ Claude</span>
+</div>
+<p class="text-gray-300 text-sm leading-relaxed mb-4">Cuando registres tu primera transacción del día, te genero el resumen con IA. Mientras tanto, ¡buen viaje!</p>
+<p class="text-muted text-[10px] italic">Generado por inteligencia artificial · Claude Haiku 4.5</p>
+</div>
+<!-- Vehicle Status Small Card -->
+<div class="card-dark p-4 flex items-center justify-between border border-gray-800">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<div>
+<p class="font-bold text-sm">u · 8</p>
+<p class="text-xs text-emerald-400">Exento — Ciudad sin pico y placa registrado</p>
+<p class="text-[10px] text-muted">Pico y Placa · Toca para ver detalles</p>
+</div>
+</div>
+<button class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-2xl">+</button>
+</div>
+</section>
+<!-- END: Section_Inicio -->
+<!-- BEGIN: Section_Registro -->
+<section class="tab-content space-y-6" id="section-registro">
+<h1 class="text-2xl font-bold pt-4">Transacciones</h1>
+<!-- Date Selector -->
+<div class="flex bg-[#171f30] p-1 rounded-xl">
+<button class="flex-1 py-2 rounded-lg bg-[#10b981] font-medium">Día</button>
+<button class="flex-1 py-2 rounded-lg text-muted">Semana</button>
+<button class="flex-1 py-2 rounded-lg text-muted">Mes</button>
+</div>
+<!-- Navigation -->
+<div class="flex justify-between items-center text-muted px-2">
+<span class="text-xl">‹</span>
+<span class="text-white font-medium">Hoy</span>
+<span class="text-xl">›</span>
+</div>
+<!-- Empty State -->
+<div class="flex flex-col items-center justify-center py-20 text-center space-y-6">
+<div class="text-6xl">📬</div>
+<div class="space-y-2">
+<h3 class="text-xl font-bold">Sin transacciones en este período</h3>
+<p class="text-muted text-sm px-10">Registra tu primer ingreso o gasto para empezar a ver tus números.</p>
+</div>
+<button class="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-xl font-bold flex items-center gap-2">
+<span>+</span> Registrar ahora
+        </button>
+</div>
+</section>
+<!-- END: Section_Registro -->
+<!-- BEGIN: Section_Vehiculo -->
+<section class="tab-content space-y-6" id="section-vehiculo">
+<div class="pt-4">
+<h1 class="text-2xl font-bold">Mis vehículos</h1>
+<p class="text-muted text-sm">1 vehículo · 0 alertas</p>
+</div>
+<div class="card-dark overflow-hidden">
+<div class="bg-blue-900/20 p-6 flex flex-col items-center relative">
+<span class="absolute top-4 left-4 bg-gray-800 text-[10px] px-2 py-1 rounded">Gasolina</span>
+<button class="absolute top-4 right-4 text-muted">⋮</button>
+<div class="w-20 h-20 rounded-full bg-blue-900/40 flex items-center justify-center text-4xl mb-4">🚗</div>
+</div>
+<div class="p-6 space-y-4">
+<div>
+<p class="text-muted text-xs">s 2010 · 2010</p>
+<h2 class="text-4xl font-bold">8</h2>
+<p class="italic text-muted">u</p>
+<p class="text-xs text-red-400 mt-2">📍 0 km</p>
+</div>
+<div class="grid grid-cols-3 gap-2 bg-black/20 p-3 rounded-xl">
+<div class="text-center border-r border-gray-700">
+<p class="text-xl font-bold">—</p>
+<p class="text-[10px] text-muted">km en 30 días</p>
+</div>
+<div class="text-center border-r border-gray-700">
+<p class="text-xl font-bold">$0</p>
+<p class="text-[10px] text-muted">gasto mes</p>
+</div>
+<div class="text-center">
+<p class="text-xl font-bold">—</p>
+<p class="text-[10px] text-muted">sin docs</p>
+</div>
+</div>
+<div class="bg-emerald-900/20 border border-emerald-500/30 p-3 rounded-xl flex items-start gap-3">
+<input checked="" class="mt-1 rounded bg-emerald-500 border-none" type="checkbox"/>
+<p class="text-xs text-emerald-100 leading-tight">Exento de Pico y Placa · Ciudad sin pico y placa registrado</p>
+</div>
+<div class="pt-2">
+<div class="flex justify-between items-center mb-4">
+<h4 class="text-xs font-bold text-muted uppercase tracking-widest">DOCUMENTOS</h4>
+<button class="text-emerald-400 text-xs font-bold">+ Agregar</button>
+</div>
+<ul class="space-y-4">
+<li class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center"></div>
+<div>
+<p class="font-bold text-sm">SOAT</p>
+<p class="text-[10px] text-muted">Sin registro · toca para agregar</p>
+</div>
+</div>
+<span class="text-muted text-xl">+</span>
+</li>
+<li class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center"></div>
+<div>
+<p class="font-bold text-sm">Tecno-mecánica</p>
+<p class="text-[10px] text-muted">Sin registro · toca para agregar</p>
+</div>
+</div>
+<span class="text-muted text-xl">+</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Section_Vehiculo -->
+<!-- BEGIN: Section_Analisis -->
+<section class="tab-content space-y-4" id="section-analisis">
+<h1 class="text-2xl font-bold pt-4">Análisis</h1>
+<div class="flex bg-[#171f30] p-1 rounded-xl">
+<button class="flex-1 py-2 rounded-lg text-muted">Día</button>
+<button class="flex-1 py-2 rounded-lg text-muted">Semana</button>
+<button class="flex-1 py-2 rounded-lg bg-[#10b981] font-medium">Mes</button>
+</div>
+<div class="flex justify-between items-center text-muted px-2 py-2">
+<span class="text-xl">‹</span>
+<span class="text-white font-medium">Este mes</span>
+<span class="text-xl">›</span>
+</div>
+<div class="flex gap-4 border-b border-gray-800 text-sm overflow-x-auto whitespace-nowrap">
+<button class="pb-2 border-b-2 border-blue-500 font-bold text-blue-400">Resumen</button>
+<button class="pb-2 text-muted">Plataformas</button>
+<button class="pb-2 text-muted">Gastos</button>
+<button class="pb-2 text-muted">Histórico</button>
+</div>
+<div class="space-y-4 pt-4">
+<div class="bg-emerald-900/20 border border-emerald-900/50 p-6 rounded-2xl">
+<p class="text-[10px] font-bold text-emerald-400 uppercase">INGRESOS DEL MES</p>
+<p class="text-3xl font-bold text-emerald-400 mt-1">$ 0</p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-red-900/20 border border-red-900/50 p-6 rounded-2xl">
+<p class="text-[10px] font-bold text-red-400 uppercase">GASTOS</p>
+<p class="text-3xl font-bold text-red-400 mt-1">$ 0</p>
+</div>
+<div class="bg-blue-900/20 border border-blue-900/50 p-6 rounded-2xl">
+<p class="text-[10px] font-bold text-blue-400 uppercase">GANANCIA NETA</p>
+<p class="text-3xl font-bold text-blue-400 mt-1">$ 0</p>
+</div>
+</div>
+<div class="card-dark p-6 border border-gray-800">
+<p class="text-[10px] font-bold text-muted uppercase">RATIO DE GASTOS</p>
+<div class="flex items-baseline gap-2 mt-2">
+<p class="text-4xl font-bold text-emerald-400">0.0%</p>
+<p class="text-muted text-xs">de tus ingresos en gastos</p>
+</div>
+<div class="h-2 bg-gray-800 rounded-full mt-4 overflow-hidden">
+<div class="h-full bg-emerald-500 w-0"></div>
+</div>
+<div class="flex items-center gap-2 mt-4 text-[10px] text-emerald-100">
+<input checked="" class="rounded border-none bg-emerald-500" type="checkbox"/>
+<span>Excelente — estás reteniendo más del 70% de tus ingresos</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="card-dark p-6 border border-gray-800">
+<p class="text-2xl font-bold">0</p>
+<p class="text-[10px] text-muted">Transacciones</p>
+</div>
+<div class="card-dark p-6 border border-gray-800">
+<p class="text-2xl font-bold">—</p>
+<p class="text-[10px] text-muted">Mejor plataforma</p>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Section_Analisis -->
+<!-- BEGIN: Section_Perfil -->
+<section class="tab-content space-y-6" id="section-perfil">
+<div class="card-dark p-8 flex flex-col items-center text-center mt-4">
+<div class="w-24 h-24 rounded-full bg-emerald-900/40 border-4 border-emerald-500 flex items-center justify-center text-4xl font-bold text-emerald-400 mb-6">
+          SM
+        </div>
+<div class="relative">
+<h2 class="text-2xl font-bold">Salomon Martinez</h2>
+<button class="absolute -right-6 top-1 text-muted">✎</button>
+</div>
+<p class="text-muted text-sm mt-1">salito1405@gmail.com</p>
+<button class="mt-6 border border-blue-500 text-blue-400 text-[10px] font-bold px-6 py-2 rounded-full uppercase tracking-widest">Plan Gratuito</button>
+</div>
+<div class="card-dark p-6 space-y-6">
+<h3 class="text-xs font-bold text-muted uppercase tracking-widest">DATOS DEL CONDUCTOR</h3>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<span class="text-emerald-400">👤</span>
+<span class="text-sm">Nombre</span>
+</div>
+<span class="font-medium">Salomon Martinez</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<span class="text-emerald-400">✉️</span>
+<span class="text-sm">Email</span>
+</div>
+<span class="font-medium">salito1405@gmail.com</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<span class="text-emerald-400">📍</span>
+<span class="text-sm">País</span>
+</div>
+<span class="font-medium">Colombia</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-3">
+<span class="text-emerald-400">💵</span>
+<span class="text-sm">Moneda</span>
+</div>
+<span class="font-medium">COP</span>
+</div>
+</div>
+</div>
+<div class="card-dark p-6 space-y-4">
+<h3 class="text-xs font-bold text-muted uppercase tracking-widest">SEPARACIÓN DE INGRESOS</h3>
+<p class="text-muted text-xs leading-relaxed">Separa automáticamente un % de cada ingreso para mantenimiento y ahorro.</p>
+<h4 class="text-lg font-bold">Separacion de ingresos</h4>
+<p class="text-[10px] text-muted">De cada ingreso, Kivera separa automáticamente:</p>
+<div class="bg-gray-800/40 p-4 rounded-2xl flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-yellow-900/30 rounded-xl flex items-center justify-center text-xl">🔧</div>
+<div>
+<p class="text-sm font-bold">Mantenimiento</p>
+<p class="text-xl font-bold text-yellow-500">10%</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Section_Perfil -->
+</main>
+<!-- END: MainContentContainer -->
+<!-- BEGIN: BottomNavigation -->
+<nav class="fixed bottom-0 left-0 right-0 bg-[#0d121f] border-t border-gray-800 px-2 safe-area-bottom z-50">
+<div class="flex justify-around items-center h-20">
+<button class="nav-item flex flex-col items-center gap-1 text-emerald-500" data-target="section-inicio">
+<div class="text-xl">🏠</div>
+<span class="text-[10px] font-medium">Inicio</span>
+</button>
+<button class="nav-item flex flex-col items-center gap-1 text-muted" data-target="section-registro">
+<div class="text-xl">💵</div>
+<span class="text-[10px] font-medium">Registro</span>
+</button>
+<button class="nav-item flex flex-col items-center gap-1 text-muted" data-target="section-vehiculo">
+<div class="text-xl">🚗</div>
+<span class="text-[10px] font-medium">Vehiculo</span>
+</button>
+<button class="nav-item flex flex-col items-center gap-1 text-muted" data-target="section-analisis">
+<div class="text-xl">📊</div>
+<span class="text-[10px] font-medium">Analisis</span>
+</button>
+<button class="nav-item flex flex-col items-center gap-1 text-muted" data-target="section-perfil">
+<div class="text-xl">👤</div>
+<span class="text-[10px] font-medium">Perfil</span>
+</button>
+</div>
+</nav>
+<!-- END: BottomNavigation -->
+<!-- BEGIN: FloatingActionButton -->
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-blue-600 rounded-full shadow-2xl flex items-center justify-center text-3xl font-light z-40" id="fab-global">
+    +
+  </button>
+<!-- END: FloatingActionButton -->
+<script data-purpose="navigation-logic">
+    const navItems = document.querySelectorAll('.nav-item');
+    const sections = document.querySelectorAll('.tab-content');
+
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        const target = item.getAttribute('data-target');
+        
+        // Update Nav UI
+        navItems.forEach(i => {
+          i.classList.remove('text-emerald-500');
+          i.classList.add('text-muted');
+        });
+        item.classList.add('text-emerald-500');
+        item.classList.remove('text-muted');
+
+        // Switch Sections
+        sections.forEach(sec => sec.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+        
+        // Scroll to top on switch
+        window.scrollTo(0,0);
+      });
+    });
+  </script>
+</body></html>

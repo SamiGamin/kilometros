@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kivera Onboarding</title>
+<!-- Tailwind CSS v3 CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style data-purpose="custom-transitions">
+    /* Hide scrollbar for the carousel */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    /* Smooth scrolling for the snap container */
+    .snap-x {
+      scroll-behavior: smooth;
+    }
+  </style>
+</head>
+<body class="bg-[#0a0f1c] text-white h-full overflow-hidden font-sans">
+<!-- BEGIN: OnboardingContainer -->
+<main class="h-full flex flex-col max-w-md mx-auto relative">
+<!-- BEGIN: HeaderNav -->
+<header class="p-6 flex justify-end items-center z-10">
+<button class="text-gray-400 text-sm font-medium hover:text-white transition-colors" data-purpose="skip-button">
+        Saltar
+      </button>
+</header>
+<!-- END: HeaderNav -->
+<!-- BEGIN: ScreenCarousel -->
+<!-- Horizontal scroll container with snapping for mobile-like interaction -->
+<div class="flex-1 flex overflow-x-auto snap-x snap-mandatory no-scrollbar" data-purpose="onboarding-carousel" id="carousel">
+<!-- BEGIN: Screen1 -->
+<section class="min-w-full h-full flex flex-col items-center justify-center px-8 snap-start" id="screen1">
+<div class="mb-12 flex justify-center">
+<!-- Icon Container -->
+<div class="w-32 h-32 rounded-full bg-[#111827] flex items-center justify-center" data-purpose="icon-wrapper">
+<img alt="Bar Chart Icon" class="w-16 h-16 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCISdb5HzY4WxTgOFnWsBjtgVZGQKjDhcEKQIuB5q1eKjfcW9cqlQuBybY8IFVUkIy8V6LMjXVSbpEhqfffYsE8_8t3VjHA6H2O7WKRTahy2HKgoo9uLuQ3WMT0XWMLRgB00Bhck6xviAq3yaJAlN0db-fZbvAgOtYH1ZPZ7dzxVi6Gv6lx4BXkoZpXN3s1XdwWjxfwZqqU-AN9KqBqSzv4K4jSOHIugcuZmccOOvaMocurjMYnPDMkObpn2Wr-Yez7aw"/>
+</div>
+</div>
+<h1 class="text-3xl font-bold text-center mb-6 leading-tight">
+          ¿Sabes cuánto ganas por hora?
+        </h1>
+<p class="text-gray-400 text-center text-lg leading-relaxed max-w-xs">
+          Kivera calcula tus ingresos reales descontando gasolina, mantenimiento y tiempo. La mayoría de conductores no conoce este número.
+        </p>
+</section>
+<!-- END: Screen1 -->
+<!-- BEGIN: Screen2 -->
+<section class="min-w-full h-full flex flex-col items-center justify-center px-8 snap-start" id="screen2">
+<div class="mb-12 flex justify-center">
+<!-- Icon Container -->
+<div class="w-32 h-32 rounded-full bg-[#111827] flex items-center justify-center" data-purpose="icon-wrapper">
+<img alt="Scales Icon" class="w-16 h-16 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0CfjGWxUu1XLv1jgL60keMptBi0j0BoKquzDa3jLNCsGfVHKc1_717X-iWq6fXL4Xezc_0lpQxLD-TWVULEkq7UP02nOfaWR53qR3jlJP_WR7J0xe_Q6UTtbgv5PP_f_nYYsnyRA2zxbMCK40i9f6DzO18Z0YgLnZGatq7wvJ-c4F6aAkyHn6snBmLtQ0v6w6O7Mn8lQRRCRWMg5UwAlA-4eNBiOrr3T1ZtT8zuOzoiBLDePUSjLUTXwzCsuthBra1A"/>
+</div>
+</div>
+<h1 class="text-3xl font-bold text-center mb-6 leading-tight">
+          Compara tus plataformas
+        </h1>
+<p class="text-gray-400 text-center text-lg leading-relaxed max-w-xs">
+          Descubre en segundos cuál entre Uber, Didi o InDrive te paga mejor hora por hora. Optimiza tu tiempo donde más rinde.
+        </p>
+</section>
+<!-- END: Screen2 -->
+<!-- BEGIN: Screen3 -->
+<section class="min-w-full h-full flex flex-col items-center justify-center px-8 snap-start" id="screen3">
+<div class="mb-12 flex justify-center">
+<!-- Icon Container -->
+<div class="w-32 h-32 rounded-full bg-[#111827] flex items-center justify-center" data-purpose="icon-wrapper">
+<img alt="Wrench Icon" class="w-16 h-16 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZCDtfrn6AnMzSCgVz0Fns3fU9eo2qk2YCpDAyy44lmilFJnjV6vqfW-iikRo1WXQjohZUqvfLqa0gp_RwWOeiXzldTtEc2AKvjmZgfYgvG0OhJDex89AgvKexOS5xVSe3DyqXYM8hjiocwce6c_gtInzRY9joAUV-RoOthLB3z9krylikZ-Un0wsfv4wG4fiLXAUWAdrlSc46-T3Pqk1yR-SOVPrYSkVXFXIOW0jKgmC8ihA92bktyM_b-cxBJPYvCQ"/>
+</div>
+</div>
+<h1 class="text-3xl font-bold text-center mb-6 leading-tight">
+          Cuida tu vehículo
+        </h1>
+<p class="text-gray-400 text-center text-lg leading-relaxed max-w-xs">
+          Alertas de mantenimiento por kilometraje real — no por fechas arbitrarias. Nunca más se te pase un cambio de aceite.
+        </p>
+</section>
+<!-- END: Screen3 -->
+</div>
+<!-- END: ScreenCarousel -->
+<!-- BEGIN: FooterControls -->
+<footer class="p-8 space-y-8">
+<!-- Pagination Dots -->
+<div class="flex justify-center gap-2" id="pagination-dots">
+<div class="h-2 w-8 rounded-full bg-[#10b981] transition-all duration-300" data-index="0"></div>
+<div class="h-2 w-2 rounded-full bg-gray-700 transition-all duration-300" data-index="1"></div>
+<div class="h-2 w-2 rounded-full bg-gray-700 transition-all duration-300" data-index="2"></div>
+</div>
+<!-- Action Button -->
+<div class="w-full">
+<button class="w-full py-4 rounded-lg text-lg font-bold transition-all duration-300 bg-[#10b981] text-white" id="main-btn">
+          Siguiente
+        </button>
+</div>
+<!-- Login Link -->
+<p class="text-center text-gray-400 text-sm">
+        ¿Ya tienes cuenta? <a class="text-blue-500 font-semibold hover:underline" href="#">Inicia sesión</a>
+</p>
+<!-- Home Indicator (Mobile UX) -->
+<div class="w-1/3 h-1 bg-gray-800 mx-auto rounded-full mt-4"></div>
+</footer>
+<!-- END: FooterControls -->
+</main>
+<!-- END: OnboardingContainer -->
+<script data-purpose="carousel-logic">
+    const carousel = document.getElementById('carousel');
+    const dots = document.querySelectorAll('#pagination-dots div');
+    const mainBtn = document.getElementById('main-btn');
+
+    const screenData = [
+      { color: 'bg-[#10b981]', text: 'Siguiente' },
+      { color: 'bg-[#2563eb]', text: 'Siguiente' },
+      { color: 'bg-[#f59e0b]', text: 'Comenzar ahora' }
+    ];
+
+    // Update UI based on scroll position
+    carousel.addEventListener('scroll', () => {
+      const scrollIndex = Math.round(carousel.scrollLeft / carousel.offsetWidth);
+      updateUI(scrollIndex);
+    });
+
+    function updateUI(index) {
+      // Update Dots
+      dots.forEach((dot, i) => {
+        if (i === index) {
+          dot.className = `h-2 w-8 rounded-full ${screenData[index].color} transition-all duration-300`;
+        } else {
+          dot.className = `h-2 w-2 rounded-full bg-gray-700 transition-all duration-300`;
+        }
+      });
+
+      // Update Button
+      mainBtn.className = `w-full py-4 rounded-lg text-lg font-bold transition-all duration-300 ${screenData[index].color} text-white`;
+      mainBtn.innerText = screenData[index].text;
+    }
+
+    // Button Navigation
+    mainBtn.addEventListener('click', () => {
+      const currentIndex = Math.round(carousel.scrollLeft / carousel.offsetWidth);
+      if (currentIndex < 2) {
+        carousel.scrollTo({
+          left: carousel.offsetWidth * (currentIndex + 1),
+          behavior: 'smooth'
+        });
+      } else {
+        // Final action logic here
+        console.log('Onboarding Finished');
+      }
+    });
+  </script>
+</body></html>

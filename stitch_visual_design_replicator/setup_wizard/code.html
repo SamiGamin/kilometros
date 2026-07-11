@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kivera - Configuración de Vehículo</title>
+<!-- Tailwind CSS v3 CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'kivera-dark': '#0b1120',
+            'kivera-card': '#161e2d',
+            'kivera-blue': '#1d4ed8',
+            'kivera-blue-light': '#3b82f6',
+            'kivera-text-muted': '#94a3b8',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-layout">
+    body {
+      background-color: #0b1120; /* Kivera Dark */
+      color: white;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .step-content {
+      display: none;
+    }
+    .step-content.active {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+  </style>
+</head>
+<body class="h-full overflow-hidden">
+<!-- BEGIN: MainContainer -->
+<main class="flex flex-col h-full max-w-md mx-auto relative px-6 pt-4 pb-8">
+<!-- BEGIN: TopNavigation -->
+<div class="mb-6" data-purpose="navigation-header">
+<div class="flex justify-between items-center mb-4">
+<span class="text-xs font-bold text-blue-500 uppercase tracking-wider" id="step-label">PASO 1 DE 4</span>
+<div class="flex gap-4 items-center text-sm">
+<span class="flex items-center gap-1"><span class="w-2 h-2 bg-green-500 rounded-full"></span> 5:00</span>
+<span class="text-kivera-text-muted">84%</span>
+</div>
+</div>
+<!-- Progress Bar -->
+<div class="flex gap-2 h-1.5 w-full">
+<div class="flex-1 bg-blue-600 rounded-full transition-colors duration-300" id="progress-1"></div>
+<div class="flex-1 bg-gray-700 rounded-full transition-colors duration-300" id="progress-2"></div>
+<div class="flex-1 bg-gray-700 rounded-full transition-colors duration-300" id="progress-3"></div>
+<div class="flex-1 bg-gray-700 rounded-full transition-colors duration-300" id="progress-4"></div>
+</div>
+</div>
+<!-- END: TopNavigation -->
+<!-- BEGIN: Step1 - City Selection -->
+<section class="step-content active" data-purpose="step-city-selection" id="step-1">
+<h1 class="text-2xl font-bold mb-2">¿En qué ciudad conduces?</h1>
+<p class="text-kivera-text-muted text-sm mb-8">Para calcular tu Pico y Placa correctamente</p>
+<div class="relative mb-4">
+<div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<input class="block w-full pl-12 pr-10 py-4 bg-kivera-card border-none rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Buscar tu ciudad o municipio..." type="text"/>
+<div class="absolute inset-y-0 right-0 pr-4 flex items-center">
+<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+<p class="text-xs text-gray-500">Encuentra tu ciudad para personalizar tu Pico y Placa</p>
+</section>
+<!-- END: Step1 -->
+<!-- BEGIN: Step2 - Vehicle Details -->
+<section class="step-content no-scrollbar overflow-y-auto" data-purpose="step-vehicle-details" id="step-2">
+<h1 class="text-2xl font-bold mb-2">Tu vehículo</h1>
+<p class="text-kivera-text-muted text-sm mb-6">Información básica de tu vehículo de trabajo</p>
+<div class="space-y-6">
+<!-- Vehicle Type Selection -->
+<div>
+<label class="block text-sm font-semibold mb-3">Tipo de vehículo</label>
+<div class="flex gap-3">
+<button class="flex-1 py-3 px-2 bg-blue-900/30 border-2 border-blue-600 rounded-xl flex items-center justify-center gap-2 text-sm font-medium">
+              🚗 Automóvil
+            </button>
+<button class="flex-1 py-3 px-2 bg-kivera-card border-2 border-transparent rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-gray-400">
+              🏍️ Moto
+            </button>
+<button class="flex-1 py-3 px-2 bg-kivera-card border-2 border-transparent rounded-xl flex items-center justify-center gap-2 text-sm font-medium text-gray-400">
+              🚐 Van
+            </button>
+</div>
+</div>
+<!-- Input Fields -->
+<div class="space-y-4">
+<div>
+<label class="block text-xs text-gray-400 mb-1 ml-1">Apodo</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2">🚗</span>
+<input class="w-full pl-12 pr-4 py-4 bg-kivera-card border-none rounded-xl text-white placeholder-gray-600" placeholder="Mi Spark, La Honda..." type="text"/>
+</div>
+</div>
+<div>
+<label class="block text-xs text-gray-400 mb-1 ml-1">Marca</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2">🏢</span>
+<input class="w-full pl-12 pr-4 py-4 bg-kivera-card border-none rounded-xl text-white placeholder-gray-600" placeholder="Chevrolet, Honda, BYD..." type="text"/>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block text-xs text-gray-400 mb-1 ml-1">Modelo</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2">📋</span>
+<input class="w-full pl-11 pr-4 py-4 bg-kivera-card border-none rounded-xl text-white placeholder-gray-600" placeholder="Spark..." type="text"/>
+</div>
+</div>
+<div>
+<label class="block text-xs text-gray-400 mb-1 ml-1">Año</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-sm">📅</span>
+<input class="w-full pl-11 pr-4 py-4 bg-kivera-card border-none rounded-xl text-white placeholder-gray-600" placeholder="2020" type="text"/>
+</div>
+</div>
+</div>
+<div>
+<label class="block text-xs text-gray-400 mb-1 ml-1">Placa (opcional)</label>
+<div class="relative">
+<span class="absolute left-4 top-1/2 -translate-y-1/2 text-xs">🔢</span>
+<input class="w-full pl-12 pr-4 py-4 bg-kivera-card border-none rounded-xl text-white placeholder-gray-600 uppercase" placeholder="ABC 123" type="text"/>
+</div>
+</div>
+</div>
+<!-- Fuel Selection -->
+<div>
+<label class="block text-sm font-semibold mb-3">Combustible</label>
+<div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+<button class="shrink-0 px-4 py-3 bg-blue-900/30 border border-blue-600 rounded-xl flex items-center gap-2 text-xs font-medium">
+              ⛽ Gasolina
+            </button>
+<button class="shrink-0 px-4 py-3 bg-kivera-card border border-transparent rounded-xl flex items-center gap-2 text-xs font-medium text-gray-400">
+              🛢️ Diesel
+            </button>
+<button class="shrink-0 px-4 py-3 bg-kivera-card border border-transparent rounded-xl flex items-center gap-2 text-xs font-medium text-gray-400">
+              🔥 GLP
+            </button>
+<button class="shrink-0 px-4 py-3 bg-kivera-card border border-transparent rounded-xl flex items-center gap-2 text-xs font-medium text-gray-400">
+              ☁️ GNV
+            </button>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Step2 -->
+<!-- BEGIN: Step3 - Vehicle Documents -->
+<section class="step-content no-scrollbar overflow-y-auto" data-purpose="step-documents" id="step-3">
+<h1 class="text-2xl font-bold mb-2">Documentos del vehículo</h1>
+<p class="text-kivera-text-muted text-sm mb-6">Registra fechas de vencimiento para recibir alertas</p>
+<div class="space-y-4">
+<!-- Document Card 1 -->
+<div class="bg-kivera-card p-4 rounded-2xl border border-gray-800">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="text-2xl">🛡️</span>
+<span class="font-bold">SOAT</span>
+</div>
+<input checked="" class="w-6 h-6 rounded border-gray-700 bg-gray-800 text-green-500 focus:ring-offset-0 focus:ring-0" type="checkbox"/>
+</div>
+<div class="grid grid-cols-2 gap-3 mb-3">
+<div class="bg-kivera-dark/50 p-3 rounded-xl border border-gray-800">
+<span class="block text-[10px] text-gray-400 uppercase mb-1">Fecha compra</span>
+<div class="flex items-center gap-2 text-sm text-gray-500">
+<span>📅</span> DD/MM/AAAA
+              </div>
+</div>
+<div class="bg-kivera-dark/50 p-3 rounded-xl border border-gray-800">
+<span class="block text-[10px] text-gray-400 uppercase mb-1">Vencimiento</span>
+<div class="flex items-center gap-2 text-sm text-gray-500">
+<span>📅</span> DD/MM/AAAA
+              </div>
+</div>
+</div>
+<div class="bg-kivera-dark/50 p-3 rounded-xl border border-gray-800 flex items-center gap-3">
+<span class="text-sm">💰</span>
+<input class="bg-transparent border-none p-0 focus:ring-0 text-sm w-full" type="text" value="350000"/>
+</div>
+</div>
+<!-- Document Card 2 -->
+<div class="bg-kivera-card p-4 rounded-2xl border border-gray-800">
+<div class="flex justify-between items-center mb-4">
+<div class="flex items-center gap-3">
+<span class="text-2xl">🔧</span>
+<span class="font-bold">Tecno-mecanica</span>
+</div>
+<input checked="" class="w-6 h-6 rounded border-gray-700 bg-gray-800 text-green-500 focus:ring-offset-0 focus:ring-0" type="checkbox"/>
+</div>
+<div class="grid grid-cols-2 gap-3 mb-3">
+<div class="bg-kivera-dark/50 p-3 rounded-xl border border-gray-800">
+<span class="block text-[10px] text-gray-400 uppercase mb-1">Fecha compra</span>
+<div class="flex items-center gap-2 text-sm text-gray-500">
+<span>📅</span> DD/MM/AAAA
+              </div>
+</div>
+<div class="bg-kivera-dark/50 p-3 rounded-xl border border-gray-800">
+<span class="block text-[10px] text-gray-400 uppercase mb-1">Vencimiento</span>
+<div class="flex items-center gap-2 text-sm text-gray-500">
+<span>📅</span> DD/MM/AAAA
+              </div>
+</div>
+</div>
+<div class="bg-kivera-dark/50 p-3 rounded-xl border border-gray-800 flex items-center gap-3">
+<span class="text-sm">💰</span>
+<input class="bg-transparent border-none p-0 focus:ring-0 text-sm w-full" type="text" value="350000"/>
+</div>
+</div>
+<!-- Document Card 3 (Simple) -->
+<div class="bg-kivera-card p-5 rounded-2xl border border-gray-800 flex justify-between items-center">
+<div class="flex items-center gap-3">
+<span class="text-2xl">📋</span>
+<span class="font-bold">Seguro Todo Riesgo</span>
+</div>
+<input class="w-6 h-6 rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-offset-0 focus:ring-0" type="checkbox"/>
+</div>
+</div>
+</section>
+<!-- END: Step3 -->
+<!-- BEGIN: Step4 - Platforms -->
+<section class="step-content" data-purpose="step-platforms" id="step-4">
+<h1 class="text-2xl font-bold mb-2">¿En qué plataformas trabajas?</h1>
+<p class="text-kivera-text-muted text-sm mb-8">Selecciona las plataformas donde generas ingresos</p>
+<div class="grid grid-cols-2 gap-4">
+<!-- Platform Item -->
+<button class="bg-kivera-card border-2 border-transparent p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-blue-500 transition-all group">
+<div class="w-14 h-14 bg-yellow-400 rounded-full flex items-center justify-center text-3xl shadow-lg shadow-yellow-400/20">🚕</div>
+<span class="font-semibold text-lg">Uber</span>
+</button>
+<button class="bg-kivera-card border-2 border-transparent p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-blue-500 transition-all group">
+<div class="w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-3xl shadow-lg shadow-orange-500/20">🟠</div>
+<span class="font-semibold text-lg">Didi</span>
+</button>
+<button class="bg-kivera-card border-2 border-transparent p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-blue-500 transition-all group">
+<div class="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center text-3xl shadow-lg shadow-green-500/20">🟢</div>
+<span class="font-semibold text-lg">InDrive</span>
+</button>
+<button class="bg-kivera-card border-2 border-transparent p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-blue-500 transition-all group">
+<div class="w-14 h-14 bg-purple-600 rounded-full flex items-center justify-center text-3xl shadow-lg shadow-purple-600/20">🟣</div>
+<span class="font-semibold text-lg">Cabify</span>
+</button>
+<button class="bg-kivera-card border-2 border-transparent p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-blue-500 transition-all group">
+<div class="w-14 h-14 bg-orange-400 rounded-full flex items-center justify-center text-3xl shadow-lg shadow-orange-400/20">🍊</div>
+<span class="font-semibold text-lg">Rappi</span>
+</button>
+<button class="bg-kivera-card border-2 border-transparent p-6 rounded-3xl flex flex-col items-center justify-center gap-3 hover:border-blue-500 transition-all group">
+<div class="w-14 h-14 bg-red-500 rounded-full flex items-center justify-center text-3xl shadow-lg shadow-red-500/20">🔴</div>
+<span class="font-semibold text-lg">Beat</span>
+</button>
+</div>
+</section>
+<!-- END: Step4 -->
+<!-- BEGIN: FooterActions -->
+<div class="mt-auto pt-6 bg-kivera-dark" data-purpose="bottom-actions">
+<div class="hidden text-center mb-6" id="skip-link">
+<a class="text-sm text-gray-400 underline underline-offset-4" href="#">Configurar despues</a>
+</div>
+<button class="w-full bg-blue-700 hover:bg-blue-600 text-white font-bold py-5 rounded-2xl transition-all shadow-lg active:scale-[0.98]" id="next-btn">
+        Siguiente
+      </button>
+</div>
+<!-- END: FooterActions -->
+</main>
+<!-- END: MainContainer -->
+<script data-purpose="navigation-logic">
+    let currentStep = 1;
+    const totalSteps = 4;
+    
+    const nextBtn = document.getElementById('next-btn');
+    const stepLabel = document.getElementById('step-label');
+    const skipLink = document.getElementById('skip-link');
+
+    function updateUI() {
+      // Hide all steps
+      for (let i = 1; i <= totalSteps; i++) {
+        document.getElementById(`step-${i}`).classList.remove('active');
+        const bar = document.getElementById(`progress-${i}`);
+        if (i <= currentStep) {
+          bar.classList.replace('bg-gray-700', 'bg-blue-600');
+        } else {
+          bar.classList.replace('bg-blue-600', 'bg-gray-700');
+        }
+      }
+
+      // Show current step
+      document.getElementById(`step-${currentStep}`).classList.add('active');
+      stepLabel.innerText = `PASO ${currentStep} DE ${totalSteps}`;
+
+      // Update button text and show/hide skip link
+      if (currentStep === 4) {
+        nextBtn.innerText = 'Comenzar a usar Kivera';
+      } else {
+        nextBtn.innerText = 'Siguiente';
+      }
+
+      if (currentStep >= 3) {
+        skipLink.classList.remove('hidden');
+      } else {
+        skipLink.classList.add('hidden');
+      }
+    }
+
+    nextBtn.addEventListener('click', () => {
+      if (currentStep < totalSteps) {
+        currentStep++;
+        updateUI();
+      } else {
+        // Final Action - e.g., Redirect or Form Submit
+        alert('Configuración completada. ¡Bienvenido a Kivera!');
+      }
+    });
+
+    // Initialize UI
+    updateUI();
+  </script>
+</body></html>
