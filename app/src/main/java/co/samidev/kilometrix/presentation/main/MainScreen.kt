@@ -137,6 +137,25 @@ private fun BottomNavigationBar(
 }
 
 @Composable
+private fun TabPill(isSelected: Boolean) {
+    AnimatedVisibility(
+        visible = isSelected,
+        enter = scaleIn(
+            spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
+        ) + fadeIn(tween(150)),
+        exit = scaleOut(tween(150)) + fadeOut(tween(100))
+    ) {
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(28.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Secondary.copy(alpha = 0.18f))
+        )
+    }
+}
+
+@Composable
 private fun AnimatedNavItem(
     emoji: String,
     label: String,
@@ -169,21 +188,7 @@ private fun AnimatedNavItem(
         ) {
             // Animated background pill for selected tab
             Box(contentAlignment = Alignment.Center) {
-                AnimatedVisibility(
-                    visible = isSelected,
-                    enter = scaleIn(
-                        spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMedium)
-                    ) + fadeIn(tween(150)),
-                    exit = scaleOut(tween(150)) + fadeOut(tween(100))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(40.dp)
-                            .height(28.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Secondary.copy(alpha = 0.18f))
-                    )
-                }
+                TabPill(isSelected = isSelected)
                 Text(
                     text = emoji,
                     style = MaterialTheme.typography.titleLarge,
