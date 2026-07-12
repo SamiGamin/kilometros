@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,11 +22,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import co.samidev.kilometrix.R
+import co.samidev.kilometrix.domain.model.CityData
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.ui.theme.*
 import kotlinx.coroutines.launch
@@ -63,6 +66,7 @@ private val platformIds = listOf("Uber", "Didi", "InDrive", "Cabify", "Rappi", "
 fun SetupWizardScreen(onSetupComplete: () -> Unit) {
     val viewModel: SetupViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
+    val citiesList by viewModel.cities.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -172,7 +176,7 @@ fun SetupWizardScreen(onSetupComplete: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 ) { step ->
                     when (step) {
-                        1 -> Step1City(cityQuery, onQueryChange = { cityQuery = it })
+                        1 -> Step1City(cityQuery, onQueryChange = { cityQuery = it }, availableCities = citiesList)
                         2 -> Step2Vehicle(
                             selectedType = selectedVehicleType,
                             onTypeSelected = { selectedVehicleType = it },
@@ -307,7 +311,22 @@ fun SetupWizardScreen(onSetupComplete: () -> Unit) {
 
 // ── Step 1 — City ─────────────────────────────────────────────────────────────
 @Composable
-private fun Step1City(query: String, onQueryChange: (String) -> Unit) {
+private fun Step1City(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    availableCities: List<CityData>
+) {
+    val filteredCities = remember(query, availableCities) {
+        if (query.trim().isEmpty()) {
+            availableCities
+        } else {
+            availableCities.filter {
+                it.name.contains(query, ignoreCase = true) ||
+                it.state.contains(query, ignoreCase = true)
+            }
+        }
+    }
+
     Column {
         Text(stringResource(R.string.setup_city_title), style = MaterialTheme.typography.headlineMedium, color = OnSurface)
         Spacer(Modifier.height(8.dp))
@@ -329,6 +348,71 @@ private fun Step1City(query: String, onQueryChange: (String) -> Unit) {
         )
         Spacer(Modifier.height(8.dp))
         Text(stringResource(R.string.setup_city_search_hint), style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant.copy(alpha = 0.6f))
+
+        Spacer(Modifier.height(16.dp))
+
+        if (filteredCities.isNotEmpty()) {
+            Text(
+                text = "Selecciona tu ciudad:",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = OnSurface
+            )
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 240.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(SurfaceContainerLow)
+                    .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                    .padding(vertical = 4.dp)
+            ) {
+                items(filteredCities.size) { index ->
+                    val city = filteredCities[index]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onQueryChange(city.name) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Primary.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = Primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = city.name,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = OnSurface
+                            )
+                            Text(
+                                text = city.state,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = OnSurfaceVariant
+                            )
+                        }
+                    }
+                    if (index < filteredCities.size - 1) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = OutlineVariant.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

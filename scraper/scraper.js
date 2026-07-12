@@ -30,11 +30,11 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// Guardar datos en Firestore en documento pico_y_placa_dev para desarrollo
+// Guardar datos en Firestore en documento pico_y_placa para desarrollo
 async function guardarEnFirestore(data) {
   try {
-    await db.collection('configuracion').doc('pico_y_placa_dev').set(data);
-    console.log("¡Datos actualizados con éxito en Firebase Firestore (pico_y_placa_dev)!");
+    await db.collection('configuracion').doc('pico_y_placa').set(data);
+    console.log("¡Datos actualizados con éxito en Firebase Firestore (pico_y_placa)!");
   } catch (error) {
     console.error("Error al guardar en Firestore:", error);
     process.exit(1);
@@ -67,37 +67,131 @@ function formatHorario(rawText) {
   return rawText;
 }
 
-// Scrapear horario de pyphoy.com
-async function scrapeHorario(citySlug, categorySlug, fallbackValue) {
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Scrapear una ciudad colombiana desde su página principal
+async function scrapeCityData(city) {
   try {
-    const url = `https://www.pyphoy.com/${citySlug}/${categorySlug}`;
-    console.log(`Scrapeando horario desde: ${url}`);
+    const url = `https://www.pyphoy.com/${city.id}`;
+    console.log(`Scrapeando ciudad: ${city.name} (${url})`);
     const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
       timeout: 8000
     });
+    
     const $ = cheerio.load(response.data);
-    let horarioText = "";
-    $('div').each((i, el) => {
-      const txt = $(el).text().trim();
-      // regex para capturar franjas horarias tipo "6:00am a 9:00pm" o "5:00am a 8:00pm"
-      if (/^\d{1,2}:\d{2}(?:am|pm)?\s*a\s*\d{1,2}:\d{2}(?:am|pm)?$/i.test(txt)) {
-        horarioText = txt;
-        return false;
+    const restrictions = [];
+    
+    // Obtener departamento/estado
+    let department = "Colombia";
+    const deptText = $('.text-sm.text-gray-500.font-medium').text().trim();
+    if (deptText) {
+      department = deptText.split(',')[0].trim();
+    }
+
+    // Buscar las tarjetas de categorías (particulares, motos, taxis)
+    $('.shrink-0.bg-blue-500, .bg-blue-500').each((i, el) => {
+      const card = $(el).closest('.flex-col');
+      if (card.length === 0) return;
+      
+      const link = $(el).find('a');
+      if (link.length === 0) return;
+      
+      const categoryName = link.text().replace(/[🚗🛵🚕🚛🚐🚐🚌]/g, '').trim();
+      let vehicle_type = "";
+      const catLower = categoryName.toLowerCase();
+      
+      if (catLower.includes('particular')) {
+        vehicle_type = "PARTICULAR";
+      } else if (catLower.includes('moto')) {
+        vehicle_type = "MOTO";
+      } else if (catLower.includes('taxi')) {
+        vehicle_type = "TAXI";
+      } else {
+        return; // Ignorar otras categorías (carga, especial, etc.)
       }
+
+      // Buscar el horario en la tarjeta
+      let scheduleText = "";
+      card.find('div').each((j, divEl) => {
+        const txt = $(divEl).text().trim();
+        if (/^\d{1,2}:\d{2}(?:am|pm)?\s*a\s*\d{1,2}:\d{2}(?:am|pm)?$/i.test(txt)) {
+          scheduleText = txt;
+          return false;
+        }
+      });
+
+      let algorithm = "WEEKDAY_MAP";
+      let schedule = "6:00 - 20:00";
+      if (city.id === 'bogota' && vehicle_type === 'PARTICULAR') {
+        algorithm = "BOGOTA_PARITY";
+      }
+      
+      if (scheduleText) {
+        schedule = formatHorario(scheduleText);
+      }
+
+      // Reglas de paridad semanales por defecto
+      let weekday_rules = {
+        "1": [1, 2], // Lunes
+        "2": [3, 4], // Martes
+        "3": [5, 6], // Miércoles
+        "4": [7, 8], // Jueves
+        "5": [9, 0]  // Viernes
+      };
+
+      // Conservar reglas específicas exactas ya probadas
+      if (city.id === "bogota") {
+        if (vehicle_type === "TAXI") {
+          weekday_rules = {
+            "1": [1, 2], "2": [3, 4], "3": [5, 6], "4": [7, 8], "5": [9, 0], "6": [1, 2]
+          };
+        }
+      } else if (city.id === "medellin") {
+        if (vehicle_type === "PARTICULAR" || vehicle_type === "MOTO") {
+          weekday_rules = {
+            "1": [0, 1], "2": [2, 3], "3": [4, 5], "4": [6, 7], "5": [8, 9]
+          };
+        } else if (vehicle_type === "TAXI") {
+          weekday_rules = {
+            "1": [9], "2": [0], "3": [1], "4": [2], "5": [3]
+          };
+        }
+      } else if (city.id === "cali") {
+        if (vehicle_type === "PARTICULAR") {
+          weekday_rules = {
+            "1": [3, 4], "2": [5, 6], "3": [7, 8], "4": [9, 0], "5": [1, 2]
+          };
+        }
+      }
+
+      restrictions.push({
+        vehicle_type: vehicle_type,
+        algorithm: algorithm,
+        schedule: schedule,
+        description: `Restricción para vehículos tipo ${categoryName} en ${city.name}. Horario: ${schedule}.`,
+        days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"],
+        weekday_rules: weekday_rules
+      });
     });
 
-    if (horarioText) {
-      const formatted = formatHorario(horarioText);
-      console.log(`Scrapeado exitosamente para ${citySlug}/${categorySlug}: ${formatted}`);
-      return formatted;
+    if (restrictions.length > 0) {
+      return {
+        id: city.id,
+        name: city.name,
+        state: department,
+        source_url: url,
+        restrictions: restrictions
+      };
     }
   } catch (err) {
-    console.warn(`No se pudo scrapear horario para ${citySlug}/${categorySlug} (${err.message}). Usando fallback: ${fallbackValue}`);
+    console.warn(`Error al scrapear ciudad ${city.name}: ${err.message}`);
   }
-  return fallbackValue;
+  return null;
 }
 
 async function run() {
@@ -115,6 +209,7 @@ async function run() {
       "2026-06-08", // Corpus Christi
       "2026-06-15", // Sagrado Corazón
       "2026-06-29", // San Pedro y San Pablo
+      "2026-07-13", // Festivo Especial (Nuevo festivo del 13 de Julio)
       "2026-07-20", // Independencia
       "2026-08-07", // Batalla de Boyacá
       "2026-08-17", // Asunción
@@ -127,128 +222,43 @@ async function run() {
     cities: []
   };
 
-  // --- CIUDAD 1: BOGOTÁ D.C. ---
-  console.log("Procesando Bogotá D.C...");
-  const bogotaParticularesSchedule = await scrapeHorario("bogota", "particulares", "6:00 - 21:00");
-  const bogotaTaxisSchedule = await scrapeHorario("bogota", "taxis", "6:00 - 21:00");
-
-  dataFinal.cities.push({
-    id: "bogota",
-    name: "Bogotá D.C.",
-    state: "Cundinamarca",
-    source_url: "https://www.pyphoy.com/bogota",
-    restrictions: [
-      {
-        vehicle_type: "PARTICULAR",
-        algorithm: "BOGOTA_PARITY",
-        schedule: bogotaParticularesSchedule,
-        description: `En Bogotá D.C., los días marcados en rojo no puedes circular con tu vehículo particular durante: ${bogotaParticularesSchedule}. Recuerda que la restricción funciona por paridad (días pares restringen placas 1-5; días impares restringen placas 6-0). En festivos no aplica.`,
-        days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+  try {
+    console.log("Obteniendo lista completa de ciudades desde pyphoy.com...");
+    const homeResponse = await axios.get('https://www.pyphoy.com/', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
-      {
-        vehicle_type: "TAXI",
-        algorithm: "WEEKDAY_MAP",
-        schedule: bogotaTaxisSchedule,
-        description: `Restricción para taxis en Bogotá D.C. de lunes a sábado de ${bogotaTaxisSchedule} según el último número de la placa. Festivos libres.`,
-        days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"],
-        weekday_rules: {
-          "1": [1, 2], // Lunes
-          "2": [3, 4], // Martes
-          "3": [5, 6], // Miércoles
-          "4": [7, 8], // Jueves
-          "5": [9, 0], // Viernes
-          "6": [1, 2]  // Sábado
-        }
+      timeout: 10000
+    });
+    const $ = cheerio.load(homeResponse.data);
+    const citiesToScrape = [];
+
+    // Capturar todos los option de la lista de ciudades
+    $('#city option').each((i, el) => {
+      const slug = $(el).val();
+      const name = $(el).text().trim();
+      // Excluir opciones vacías y ciudades fuera de Colombia
+      if (slug && slug !== "" && !['cochabamba', 'el-alto', 'la-paz', 'potosi', 'sucre', 'quito', 'santiago', 'san-jose'].includes(slug)) {
+        citiesToScrape.push({ id: slug, name: name });
       }
-    ]
-  });
+    });
 
-  // --- CIUDAD 2: MEDELLÍN ---
-  console.log("Procesando Medellín...");
-  const medellinParticularesSchedule = await scrapeHorario("medellin", "particulares", "5:00 - 20:00");
-  const medellinMotosSchedule = await scrapeHorario("medellin", "motos", "5:00 - 20:00");
-  const medellinTaxisSchedule = await scrapeHorario("medellin", "taxis", "6:00 - 20:00");
+    console.log(`Se encontraron ${citiesToScrape.length} ciudades colombianas. Iniciando crawling...`);
 
-  dataFinal.cities.push({
-    id: "medellin",
-    name: "Medellín",
-    state: "Antioquia",
-    source_url: "https://www.pyphoy.com/medellin",
-    restrictions: [
-      {
-        vehicle_type: "PARTICULAR",
-        algorithm: "WEEKDAY_MAP",
-        schedule: medellinParticularesSchedule,
-        description: `En Medellín, los vehículos particulares tienen restricción de lunes a viernes de ${medellinParticularesSchedule} según el último dígito de la placa.`,
-        days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"],
-        weekday_rules: {
-          "1": [0, 1], // Lunes
-          "2": [2, 3], // Martes
-          "3": [4, 5], // Miércoles
-          "4": [6, 7], // Jueves
-          "5": [8, 9]  // Viernes
-        }
-      },
-      {
-        vehicle_type: "MOTO",
-        algorithm: "WEEKDAY_MAP",
-        schedule: medellinMotosSchedule,
-        description: `En Medellín, las motos de 2 y 4 tiempos tienen restricción de lunes a viernes de ${medellinMotosSchedule} según el primer número de la placa.`,
-        days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"],
-        weekday_rules: {
-          "1": [0, 1],
-          "2": [2, 3],
-          "3": [4, 5],
-          "4": [6, 7],
-          "5": [8, 9]
-        }
-      },
-      {
-        vehicle_type: "TAXI",
-        algorithm: "WEEKDAY_MAP",
-        schedule: medellinTaxisSchedule,
-        description: `En Medellín, los taxis tienen restricción de lunes a viernes de ${medellinTaxisSchedule} según el último número de la placa.`,
-        days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"],
-        weekday_rules: {
-          "1": [9],
-          "2": [0],
-          "3": [1],
-          "4": [2],
-          "5": [3]
-        }
+    for (const city of citiesToScrape) {
+      const cityData = await scrapeCityData(city);
+      if (cityData) {
+        dataFinal.cities.push(cityData);
       }
-    ]
-  });
+      await sleep(250); // Delay prudente de 250ms para evitar rate limits
+    }
 
-  // --- CIUDAD 3: CALI ---
-  console.log("Procesando Cali...");
-  const caliParticularesSchedule = await scrapeHorario("cali", "particulares", "6:00 - 20:00");
-
-  dataFinal.cities.push({
-    id: "cali",
-    name: "Cali",
-    state: "Valle del Cauca",
-    source_url: "https://www.pyphoy.com/cali",
-    restrictions: [
-      {
-        vehicle_type: "PARTICULAR",
-        algorithm: "WEEKDAY_MAP",
-        schedule: caliParticularesSchedule,
-        description: `En Cali, los vehículos particulares tienen restricción de lunes a viernes de ${caliParticularesSchedule} según el último número de la placa.`,
-        days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"],
-        weekday_rules: {
-          "1": [3, 4], // Lunes
-          "2": [5, 6], // Martes
-          "3": [7, 8], // Miércoles
-          "4": [9, 0], // Jueves
-          "5": [1, 2]  // Viernes
-        }
-      }
-    ]
-  });
-
-  // Guardar estructura en Firestore
-  await guardarEnFirestore(dataFinal);
+    // Guardar estructura completa en Firestore
+    await guardarEnFirestore(dataFinal);
+  } catch (err) {
+    console.error("Error fatal en el scraper:", err);
+    process.exit(1);
+  }
 }
 
 run();

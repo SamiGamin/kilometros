@@ -32,6 +32,7 @@ import co.samidev.kilometrix.core.util.Resource
 import co.samidev.kilometrix.domain.model.CityData
 import co.samidev.kilometrix.domain.model.PicoPlacaResponse
 import co.samidev.kilometrix.domain.model.Restriction
+import co.samidev.kilometrix.domain.model.UserProfile
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.presentation.vehicle.VehicleViewModel
 import co.samidev.kilometrix.ui.theme.*
@@ -48,6 +49,7 @@ fun PicoYPlacaScreen(
     val context = LocalContext.current
     val picoPlacaState by viewModel.picoPlacaState.collectAsState()
     val vehicles by vehicleViewModel.vehicles.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
 
     var selectedVehicle by remember { mutableStateOf<Vehicle?>(null) }
     var selectedCity by remember { mutableStateOf<CityData?>(null) }
@@ -118,9 +120,15 @@ fun PicoYPlacaScreen(
                 val cities = data.cities
 
                 // Set initial city
-                LaunchedEffect(cities) {
+                LaunchedEffect(cities, userProfile) {
                     if (cities.isNotEmpty() && selectedCity == null) {
-                        selectedCity = cities.first()
+                        val userCityName = userProfile?.city.orEmpty().trim()
+                        val matchedCity = cities.find {
+                            it.name.contains(userCityName, ignoreCase = true) ||
+                            userCityName.contains(it.name, ignoreCase = true) ||
+                            it.id.equals(userCityName, ignoreCase = true)
+                        }
+                        selectedCity = matchedCity ?: cities.first()
                     }
                 }
 
@@ -711,6 +719,7 @@ private fun RealTimeStatusCard(
     var statusText = ""
     var subtext = ""
     val schedule = activeRestriction?.schedule ?: "No aplica"
+    val formattedScheduleDisplay = schedule.split("y").map { convert24hRangeTo12h(it.trim()) }.joinToString(" y ")
 
     if (isHoliday) {
         statusText = "Hoy puedes circular libremente"
@@ -729,10 +738,10 @@ private fun RealTimeStatusCard(
 
         if (inRestrictionTime) {
             statusText = "⚠️ Actualmente tienes restricción"
-            subtext = "Tu placa termina en ${if (city.id == "medellin" && vehicleType == "MOTO") getFirstDigitOfPlate(plate) else getLastDigitOfPlate(plate)} y la restricción aplica de $schedule."
+            subtext = "Tu placa termina en ${if (city.id == "medellin" && vehicleType == "MOTO") getFirstDigitOfPlate(plate) else getLastDigitOfPlate(plate)} y la restricción aplica de $formattedScheduleDisplay."
         } else {
             statusText = "Estás fuera de horario de restricción"
-            subtext = "La restricción aplica hoy de $schedule. Actualmente puedes circular libremente."
+            subtext = "La restricción aplica hoy de $formattedScheduleDisplay. Actualmente puedes circular libremente."
         }
     } else {
         statusText = "Hoy puedes circular libremente"
@@ -909,6 +918,7 @@ private fun DayDetailBottomSheet(
         "06-08" -> "Corpus Christi"
         "06-15" -> "Sagrado Corazón"
         "06-29" -> "San Pedro y San Pablo"
+        "07-13" -> "Festivo Especial"
         "07-20" -> "Día de la Independencia"
         "08-07" -> "Batalla de Boyacá"
         "08-17" -> "Día de la Asunción"
@@ -994,7 +1004,7 @@ private fun DayDetailBottomSheet(
                                 "Horario continuo"
                             }
                             Text(
-                                text = "• $part  $label",
+                                text = "• ${convert24hRangeTo12h(part)}  $label",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = OnSurface
                             )
@@ -1060,4 +1070,32 @@ private fun DayDetailBottomSheet(
             Spacer(Modifier.height(16.dp))
         }
     }
+}
+
+private fun convert24hRangeTo12h(range: String): String {
+    val parts = range.split("-").map { it.trim() }
+    if (parts.size == 2) {
+        val start12 = formatTo12h(parts[0])
+        val end12 = formatTo12h(parts[1])
+        return "$start12 - $end12"
+    }
+    return range
+}
+
+private fun formatTo12h(timeStr: String): String {
+    try {
+        val parts = timeStr.split(":")
+        if (parts.size >= 2) {
+            val hours = parts[0].toIntOrNull() ?: return timeStr
+            val minutes = parts[1].toIntOrNull() ?: 0
+            val amPm = if (hours >= 12) " pm" else " am"
+            var hours12 = hours % 12
+            if (hours12 == 0) hours12 = 12
+            val minutesStr = String.format("%02d", minutes)
+            return "$hours12:$minutesStr $amPm"
+        }
+    } catch (e: Exception) {
+        // Fallback
+    }
+    return timeStr
 }

@@ -19,7 +19,7 @@ class PicoYPlacaRepositoryImpl @Inject constructor(
         trySend(Resource.Loading)
 
         val collectionPath = "configuracion"
-        val documentPath = "pico_y_placa_dev"
+        val documentPath = "pico_y_placa"
 
         val documentRef = firestore.collection(collectionPath).document(documentPath)
 

@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import co.samidev.kilometrix.R
 import co.samidev.kilometrix.ui.theme.*
 import kotlinx.coroutines.delay
@@ -49,7 +50,12 @@ private fun staggeredEntrance(index: Int): Pair<Float, Float> {
 }
 
 @Composable
-fun HomeScreen(onNavigateToPicoPlaca: () -> Unit) {
+fun HomeScreen(
+    onNavigateToPicoPlaca: () -> Unit,
+    viewModel: HomeViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -71,12 +77,12 @@ fun HomeScreen(onNavigateToPicoPlaca: () -> Unit) {
         ) {
             Column {
                 Text(
-                    text = stringResource(R.string.home_greeting, "Salomon"),
+                    text = stringResource(R.string.home_greeting, uiState.userName.ifEmpty { "Conductor" }),
                     style = MaterialTheme.typography.titleLarge,
                     color = OnSurface
                 )
                 Text(
-                    text = "Sábado, 11 de julio",
+                    text = uiState.currentDateText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = OnSurfaceVariant
                 )
@@ -88,8 +94,9 @@ fun HomeScreen(onNavigateToPicoPlaca: () -> Unit) {
                     .background(PrimaryContainer),
                 contentAlignment = Alignment.Center
             ) {
+                val initialText = if (uiState.userName.isNotEmpty()) uiState.userName.first().toString() else "C"
                 Text(
-                    text = "S",
+                    text = initialText,
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
@@ -229,8 +236,8 @@ fun HomeScreen(onNavigateToPicoPlaca: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Pulsing green dot
-                PulsingDot()
+                val statusColor = if (uiState.picoPlacaStatus.isRestrictedNow) Color(0xFFEF4444) else Secondary
+                PulsingDot(color = statusColor)
                 Column {
                     Text(
                         text = "Pico y Placa",
@@ -238,12 +245,12 @@ fun HomeScreen(onNavigateToPicoPlaca: () -> Unit) {
                         color = OnSurface
                     )
                     Text(
-                        text = stringResource(R.string.home_pico_exempt),
+                        text = uiState.picoPlacaStatus.statusText,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Secondary
+                        color = statusColor
                     )
                     Text(
-                        text = stringResource(R.string.home_pico_placa_label),
+                        text = uiState.picoPlacaStatus.subtext,
                         style = MaterialTheme.typography.labelSmall,
                         color = OnSurfaceVariant
                     )
@@ -256,7 +263,7 @@ fun HomeScreen(onNavigateToPicoPlaca: () -> Unit) {
                     .background(PrimaryContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Text("+", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                Text("→", style = MaterialTheme.typography.titleLarge, color = Color.White)
             }
         }
 
@@ -292,7 +299,7 @@ private fun StartDayButton() {
 
 // ── Pulsing status dot ────────────────────────────────────────────────────────
 @Composable
-private fun PulsingDot() {
+private fun PulsingDot(color: Color = Secondary) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 0.8f,
@@ -320,14 +327,14 @@ private fun PulsingDot() {
                 .scale(pulseScale)
                 .alpha(pulseAlpha)
                 .clip(CircleShape)
-                .background(Secondary)
+                .background(color)
         )
         // Inner solid dot
         Box(
             modifier = Modifier
                 .size(8.dp)
                 .clip(CircleShape)
-                .background(Secondary)
+                .background(color)
         )
     }
 }
