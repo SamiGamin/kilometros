@@ -10,6 +10,7 @@
 .DS_Store
 /build
 /captures
+/scraper/node_modules
 .externalNativeBuild
 .cxx
 local.properties
@@ -26,4 +27,13 @@ secrets.properties
 .env.local
 
 # Firebase configurations (if you want to keep your project configurations private)
-# google-services.json
+google-services.json
+firebase-key.json
+
+#documentacion de usuario
+implementation_plan.md
+user-guide.md
+SCRAPER_USAGE.md
+documentation.md
+roadmap.md
+walkthrough.md

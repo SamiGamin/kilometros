@@ -37,7 +37,10 @@ private enum class Tab(val labelRes: Int, val emoji: String) {
 }
 
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    onLogout: () -> Unit,
+    onNavigateToPicoPlaca: () -> Unit
+) {
     var selectedTab by remember { mutableStateOf(Tab.HOME) }
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
@@ -66,17 +69,17 @@ fun MainScreen() {
                 .padding(bottom = 72.dp)
         ) { tab ->
             when (tab) {
-                Tab.HOME -> HomeScreen()
+                Tab.HOME -> HomeScreen(onNavigateToPicoPlaca = onNavigateToPicoPlaca)
                 Tab.TRANSACTIONS -> TransactionsScreen()
                 Tab.VEHICLE -> VehicleScreen()
                 Tab.ANALYTICS -> AnalyticsScreen()
-                Tab.PROFILE -> ProfileScreen()
+                Tab.PROFILE -> ProfileScreen(onLogout = onLogout)
             }
         }
 
         // ── FAB with entrance animation ────────────────────────────────────
         AnimatedVisibility(
-            visible = selectedTab != Tab.PROFILE,
+            visible = selectedTab != Tab.PROFILE && selectedTab != Tab.VEHICLE,
             enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
             exit = scaleOut(tween(150)) + fadeOut(tween(100)),
             modifier = Modifier

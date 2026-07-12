@@ -1,0 +1,29 @@
+name: Scraper Semanal a Firebase
+
+on:
+  schedule:
+    - cron: '0 4 * * 1' # Lunes 4:00 AM UTC (Domingo 11:00 PM Colombia)
+  workflow_dispatch: # Permitir ejecución manual para pruebas
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scraper
+    steps:
+    - name: Descargar código
+      uses: actions/checkout@v4
+
+    - name: Configurar Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Instalar dependencias
+      run: npm install
+
+    - name: Ejecutar Scraper e Inyectar Secreto
+      env:
+        FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      run: node scraper.js

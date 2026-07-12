@@ -1,185 +1,173 @@
 package co.samidev.kilometrix.presentation.auth
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import co.samidev.kilometrix.R
 import co.samidev.kilometrix.ui.theme.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun VerifyEmailScreen(
     email: String,
     onVerifySuccess: () -> Unit
 ) {
-    var otpValues by remember { mutableStateOf(List(6) { "" }) }
-    val focusRequesters = remember { List(6) { FocusRequester() } }
+    val viewModel: AuthViewModel = viewModel()
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    // Auto-focus first cell on entry
-    LaunchedEffect(Unit) {
-        focusRequesters[0].requestFocus()
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Email icon
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .background(SurfaceContainerLow, RoundedCornerShape(48.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "📧", style = MaterialTheme.typography.displayLarge)
-            }
-            Spacer(Modifier.height(32.dp))
-
-            Text(
-                text = stringResource(R.string.verify_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = OnSurface
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = stringResource(R.string.verify_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = OnSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = email,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
-                color = Primary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(40.dp))
-
-            // OTP input cells
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                otpValues.forEachIndexed { index, value ->
-                    OtpCell(
-                        value = value,
-                        focusRequester = focusRequesters[index],
-                        onValueChange = { newChar ->
-                            val newList = otpValues.toMutableList()
-                            newList[index] = newChar
-                            otpValues = newList
-                            if (newChar.isNotEmpty() && index < 5) {
-                                focusRequesters[index + 1].requestFocus()
-                            }
-                        },
-                        onBackspace = {
-                            val newList = otpValues.toMutableList()
-                            newList[index] = ""
-                            otpValues = newList
-                            if (index > 0) focusRequesters[index - 1].requestFocus()
-                        },
-                        modifier = Modifier.weight(1f)
+    // Handle UI state changes for snackbar alerts
+    LaunchedEffect(uiState) {
+        when (val state = uiState) {
+            is AuthUiState.Error -> {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = state.message,
+                        duration = SnackbarDuration.Short
                     )
                 }
             }
-            Spacer(Modifier.height(32.dp))
-
-            // Verify button
-            Button(
-                onClick = onVerifySuccess,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(58.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
-                shape = RoundedCornerShape(16.dp),
-                enabled = otpValues.all { it.isNotEmpty() }
-            ) {
-                Text(
-                    text = stringResource(R.string.verify_button),
-                    style = MaterialTheme.typography.titleMedium
-                )
+            is AuthUiState.Success -> {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = state.message,
+                        duration = SnackbarDuration.Short
+                    )
+                }
             }
-            Spacer(Modifier.height(16.dp))
-
-            // Resend link
-            TextButton(onClick = { /* TODO: resend */ }) {
-                Text(
-                    text = stringResource(R.string.verify_resend),
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
-                    color = Primary
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.verify_expiry),
-                style = MaterialTheme.typography.bodySmall,
-                color = OnSurfaceVariant
-            )
+            else -> {}
         }
     }
-}
 
-@Composable
-private fun OtpCell(
-    value: String,
-    focusRequester: FocusRequester,
-    onValueChange: (String) -> Unit,
-    onBackspace: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val isFilled = value.isNotEmpty()
-    Box(
-        modifier = modifier
-            .aspectRatio(0.75f)
-            .background(SurfaceContainerLow, RoundedCornerShape(12.dp))
-            .border(
-                width = 2.dp,
-                color = if (isFilled) Primary else OutlineVariant,
-                shape = RoundedCornerShape(12.dp)
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        BasicTextField(
-            value = value,
-            onValueChange = { new ->
-                when {
-                    new.isEmpty() -> onBackspace()
-                    new.length == 1 -> onValueChange(new)
-                    else -> onValueChange(new.last().toString())
-                }
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            singleLine = true,
-            cursorBrush = SolidColor(Primary),
-            textStyle = MaterialTheme.typography.headlineMedium.copy(
-                color = OnSurface,
-                textAlign = TextAlign.Center
-            ),
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        containerColor = Background
+    ) { paddingValues ->
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester)
-        )
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(Background)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Email icon
+                Box(
+                    modifier = Modifier
+                        .size(112.dp)
+                        .background(SurfaceContainerLow, RoundedCornerShape(56.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "✉️", style = MaterialTheme.typography.displayLarge)
+                }
+                Spacer(Modifier.height(32.dp))
+
+                Text(
+                    text = stringResource(R.string.verify_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = OnSurface
+                )
+                Spacer(Modifier.height(16.dp))
+                
+                Text(
+                    text = stringResource(R.string.verify_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OnSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                
+                Text(
+                    text = email,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                    color = Primary,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(32.dp))
+
+                // Card with instructions
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = SurfaceContainerLow),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = stringResource(R.string.verify_expiry),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OnSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(20.dp)
+                    )
+                }
+                
+                Spacer(Modifier.height(40.dp))
+
+                // Check verification button
+                Button(
+                    onClick = {
+                        viewModel.checkEmailVerification { isVerified ->
+                            if (isVerified) {
+                                onVerifySuccess() // Navega a la pantalla principal
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(58.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = uiState !is AuthUiState.Loading
+                ) {
+                    if (uiState is AuthUiState.Loading) {
+                        CircularProgressIndicator(
+                            color = OnPrimaryContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.verify_button),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = OnPrimaryContainer
+                        )
+                    }
+                }
+                
+                Spacer(Modifier.height(16.dp))
+
+                // Resend email link
+                TextButton(
+                    onClick = {
+                        viewModel.resendVerificationEmail { success ->
+                            if (success) {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Correo de verificación reenviado.")
+                                }
+                            }
+                        }
+                    },
+                    enabled = uiState !is AuthUiState.Loading
+                ) {
+                    Text(
+                        text = stringResource(R.string.verify_resend),
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                        color = Primary
+                    )
+                }
+            }
+        }
     }
 }

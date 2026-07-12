@@ -8,6 +8,7 @@ object Routes {
     const val FORGOT_PASSWORD = "forgot_password"
     const val SETUP = "setup"
     const val MAIN = "main"
+    const val PICO_Y_PLACA = "pico_y_placa"
 
     fun verifyEmail(email: String) = "verify_email/$email"
 }

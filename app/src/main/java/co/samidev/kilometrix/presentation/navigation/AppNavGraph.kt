@@ -94,8 +94,36 @@ fun AppNavGraph(startDestination: String = Routes.ONBOARDING) {
                 onNavigateToRegister = { navController.navigate(Routes.REGISTER) },
                 onNavigateToForgotPassword = { navController.navigate(Routes.FORGOT_PASSWORD) },
                 onLoginSuccess = {
-                    navController.navigate(Routes.MAIN) {
-                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                    if (user != null) {
+                        if (!user.isEmailVerified) {
+                            navController.navigate(Routes.verifyEmail(user.email ?: "")) {
+                                popUpTo(Routes.ONBOARDING) { inclusive = true }
+                            }
+                        } else {
+                            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            db.collection("users").document(user.uid).get()
+                                .addOnSuccessListener { doc ->
+                                    if (doc.exists() && doc.contains("city") && !doc.getString("city").isNullOrEmpty()) {
+                                        navController.navigate(Routes.MAIN) {
+                                            popUpTo(Routes.ONBOARDING) { inclusive = true }
+                                        }
+                                    } else {
+                                        navController.navigate(Routes.SETUP) {
+                                            popUpTo(Routes.ONBOARDING) { inclusive = true }
+                                        }
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    navController.navigate(Routes.SETUP) {
+                                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                                    }
+                                }
+                        }
+                    } else {
+                        navController.navigate(Routes.MAIN) {
+                            popUpTo(Routes.ONBOARDING) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -153,7 +181,28 @@ fun AppNavGraph(startDestination: String = Routes.ONBOARDING) {
             enterTransition = { fadeEnter },
             exitTransition = { fadeExit }
         ) {
-            MainScreen()
+            MainScreen(
+                onLogout = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.MAIN) { inclusive = true }
+                    }
+                },
+                onNavigateToPicoPlaca = {
+                    navController.navigate(Routes.PICO_Y_PLACA)
+                }
+            )
+        }
+
+        composable(
+            route = Routes.PICO_Y_PLACA,
+            enterTransition = { slideInFromRight },
+            exitTransition = { slideOutToLeft },
+            popEnterTransition = { slideInFromLeft },
+            popExitTransition = { slideOutToRight }
+        ) {
+            co.samidev.kilometrix.presentation.picoyplaca.PicoYPlacaScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }

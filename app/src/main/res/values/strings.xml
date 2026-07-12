@@ -47,10 +47,10 @@
 
     <!-- ── Auth — Verify Email ────────────────────────────────────────────── -->
     <string name="verify_title">Verifica tu correo</string>
-    <string name="verify_subtitle">Enviamos un código de 6 dígitos a</string>
-    <string name="verify_button">Verificar</string>
-    <string name="verify_resend">Reenviar código</string>
-    <string name="verify_expiry">El código expira en 15 minutos</string>
+    <string name="verify_subtitle">Hemos enviado un enlace de confirmación a</string>
+    <string name="verify_button">Ya he verificado mi correo</string>
+    <string name="verify_resend">Reenviar enlace de verificación</string>
+    <string name="verify_expiry">Revisa tu bandeja de entrada o spam, haz clic en el enlace y luego presiona el botón de abajo.</string>
 
     <!-- ── Auth — Forgot Password ─────────────────────────────────────────── -->
     <string name="forgot_title">Recuperar contraseña</string>
@@ -89,8 +89,10 @@
     <string name="setup_vehicle_model_placeholder">Spark…</string>
     <string name="setup_vehicle_year_label">Año</string>
     <string name="setup_vehicle_year_placeholder">2020</string>
-    <string name="setup_vehicle_plate_label">Placa (opcional)</string>
+    <string name="setup_vehicle_plate_label">Placa </string>
     <string name="setup_vehicle_plate_placeholder">ABC 123</string>
+    <string name="setup_vehicle_odometer_label">Odómetro actual (km)</string>
+    <string name="setup_vehicle_odometer_placeholder">Ej. 45000</string>
     <string name="setup_vehicle_fuel_label">Combustible</string>
     <string name="setup_vehicle_fuel_gasoline">Gasolina</string>
     <string name="setup_vehicle_fuel_diesel">Diesel</string>

@@ -21,8 +21,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import co.samidev.kilometrix.R
 import co.samidev.kilometrix.ui.theme.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
@@ -34,115 +36,166 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
-    ) {
-        Column(
+    val viewModel: AuthViewModel = viewModel()
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // Handle UI errors from StateFlow
+    LaunchedEffect(uiState) {
+        when (val state = uiState) {
+            is AuthUiState.Error -> {
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = state.message,
+                        duration = SnackbarDuration.Short
+                    )
+                }
+            }
+            else -> {}
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        containerColor = Background
+    ) { paddingValues ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.Center
+                .padding(paddingValues)
+                .background(Background)
         ) {
-            Spacer(Modifier.height(60.dp))
-
-            // Title
-            Text(
-                text = stringResource(R.string.login_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = OnSurface
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.login_subtitle),
-                style = MaterialTheme.typography.bodyLarge,
-                color = OnSurfaceVariant
-            )
-            Spacer(Modifier.height(40.dp))
-
-            // Email field
-            AppTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = stringResource(R.string.login_email_label),
-                placeholder = stringResource(R.string.login_email_placeholder),
-                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = OnSurfaceVariant) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-            )
-            Spacer(Modifier.height(16.dp))
-
-            // Password field
-            AppTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = stringResource(R.string.login_password_label),
-                placeholder = stringResource(R.string.login_password_placeholder),
-                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = OnSurfaceVariant) },
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = null,
-                            tint = OnSurfaceVariant
-                        )
-                    }
-                },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
-            )
-
-            // Forgot password
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                TextButton(onClick = onNavigateToForgotPassword) {
-                    Text(
-                        text = stringResource(R.string.login_forgot_password),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Primary
-                    )
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-
-            // Login button
-            Button(
-                onClick = onLoginSuccess,
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(58.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
-                shape = RoundedCornerShape(16.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = stringResource(R.string.login_button),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White
-                )
-            }
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(60.dp))
 
-            // Register link
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                // Title
                 Text(
-                    text = stringResource(R.string.login_no_account),
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = stringResource(R.string.login_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = OnSurface
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.login_subtitle),
+                    style = MaterialTheme.typography.bodyLarge,
                     color = OnSurfaceVariant
                 )
-                Spacer(Modifier.width(4.dp))
-                TextButton(onClick = onNavigateToRegister, contentPadding = PaddingValues(0.dp)) {
-                    Text(
-                        text = stringResource(R.string.login_register_link),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
-                        color = Primary
-                    )
+                Spacer(Modifier.height(40.dp))
+
+                // Email field
+                AppTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = stringResource(R.string.login_email_label),
+                    placeholder = stringResource(R.string.login_email_placeholder),
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = OnSurfaceVariant) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+                Spacer(Modifier.height(16.dp))
+
+                // Password field
+                AppTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = stringResource(R.string.login_password_label),
+                    placeholder = stringResource(R.string.login_password_placeholder),
+                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = OnSurfaceVariant) },
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                                tint = OnSurfaceVariant
+                            )
+                        }
+                    },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                )
+
+                // Forgot password
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                    TextButton(onClick = onNavigateToForgotPassword) {
+                        Text(
+                            text = stringResource(R.string.login_forgot_password),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Primary
+                        )
+                    }
                 }
+                Spacer(Modifier.height(16.dp))
+
+                // Login button
+                Button(
+                    onClick = {
+                        val trimmedEmail = email.trim()
+                        val trimmedPassword = password.trim()
+                        if (trimmedEmail.isNotEmpty() && trimmedPassword.isNotEmpty()) {
+                            viewModel.loginUser(trimmedEmail, trimmedPassword) { userId ->
+                                if (userId != null) {
+                                    onLoginSuccess()
+                                }
+                            }
+                        } else {
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    message = "Por favor ingresa tu correo y contraseña.",
+                                    duration = SnackbarDuration.Short
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(58.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
+                    shape = RoundedCornerShape(16.dp),
+                    enabled = uiState !is AuthUiState.Loading
+                ) {
+                    if (uiState is AuthUiState.Loading) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.login_button),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+
+                // Register link
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.login_no_account),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OnSurfaceVariant
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(onClick = onNavigateToRegister, contentPadding = PaddingValues(0.dp)) {
+                        Text(
+                            text = stringResource(R.string.login_register_link),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                            color = Primary
+                        )
+                    }
+                }
+                Spacer(Modifier.height(48.dp))
             }
-            Spacer(Modifier.height(48.dp))
         }
     }
 }
