@@ -1,7 +1,8 @@
 package co.samidev.kilometrix.presentation.setup
 
+import androidx.compose.animation.*
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -114,9 +115,25 @@ fun SetupWizardScreen(onSetupComplete: () -> Unit) {
             }
             Spacer(Modifier.height(28.dp))
 
-            // ── Step content ───────────────────────────────────────────────
-            Box(modifier = Modifier.weight(1f)) {
-                when (currentStep) {
+            // ── Step content with directional slide transition ─────────────
+            var previousStep by remember { mutableIntStateOf(currentStep) }
+            AnimatedContent(
+                targetState = currentStep,
+                transitionSpec = {
+                    val direction = if (targetState > initialState) 1 else -1
+                    slideInHorizontally(
+                        initialOffsetX = { it * direction },
+                        animationSpec = tween(320, easing = FastOutSlowInEasing)
+                    ) + fadeIn(tween(200)) togetherWith
+                    slideOutHorizontally(
+                        targetOffsetX = { -it * direction },
+                        animationSpec = tween(320, easing = FastOutSlowInEasing)
+                    ) + fadeOut(tween(160))
+                },
+                label = "wizardStep",
+                modifier = Modifier.weight(1f)
+            ) { step ->
+                when (step) {
                     1 -> Step1City(cityQuery, onQueryChange = { cityQuery = it })
                     2 -> Step2Vehicle(
                         selectedType = selectedVehicleType,

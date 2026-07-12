@@ -1,10 +1,10 @@
 package co.samidev.kilometrix.presentation.onboarding
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -138,7 +139,15 @@ fun OnboardingScreen(
                     }
                 }
 
-                // Main action button
+                // Main action button — with spring press animation
+                val isLastPage = currentPage == pages.lastIndex
+                val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val btnScale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.96f else 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+                    label = "onboardingBtnScale"
+                )
                 Button(
                     onClick = {
                         if (currentPage < pages.lastIndex) {
@@ -147,20 +156,28 @@ fun OnboardingScreen(
                             onNavigateToRegister()
                         }
                     },
+                    interactionSource = interactionSource,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(58.dp),
+                        .height(58.dp)
+                        .scale(btnScale),
                     colors = ButtonDefaults.buttonColors(containerColor = animatedButtonColor),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text(
-                        text = if (currentPage == pages.lastIndex)
-                            stringResource(R.string.onboarding_start)
-                        else
-                            stringResource(R.string.onboarding_next),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White
-                    )
+                    AnimatedContent(
+                        targetState = isLastPage,
+                        transitionSpec = {
+                            fadeIn(tween(200)) + scaleIn(tween(200), initialScale = 0.85f) togetherWith
+                            fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.85f)
+                        },
+                        label = "btnText"
+                    ) { isLast ->
+                        Text(
+                            text = if (isLast) stringResource(R.string.onboarding_start) else stringResource(R.string.onboarding_next),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White
+                        )
+                    }
                 }
 
                 // Login link
@@ -205,10 +222,16 @@ private fun OnboardingPage(page: OnboardingPage) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Icon container
+        // Icon container with scale pop animation per page
+        val iconScale by animateFloatAsState(
+            targetValue = 1f,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+            label = "iconScale"
+        )
         Box(
             modifier = Modifier
                 .size(128.dp)
+                .scale(iconScale)
                 .clip(CircleShape)
                 .background(SurfaceContainerLow),
             contentAlignment = Alignment.Center
