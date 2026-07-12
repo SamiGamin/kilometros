@@ -5,11 +5,7 @@ plugins {
 
 android {
     namespace = "co.samidev.kilometrix"
-    compileSdk {
-        version = release(37) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "co.SamiDev.kilometrix"
