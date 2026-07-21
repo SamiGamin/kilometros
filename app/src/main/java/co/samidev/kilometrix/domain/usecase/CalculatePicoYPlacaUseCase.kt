@@ -85,8 +85,10 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
             )
         }
 
-        val todayCal = Calendar.getInstance()
-        val dateString = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(todayCal.time)
+        val todayCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Bogota"))
+        val dateString = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("America/Bogota")
+        }.format(todayCal.time)
         val isHoliday = data.holidays.contains(dateString)
         val dayOfWeek = todayCal.get(Calendar.DAY_OF_WEEK)
 

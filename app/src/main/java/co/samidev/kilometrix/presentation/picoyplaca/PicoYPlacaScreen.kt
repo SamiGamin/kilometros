@@ -615,7 +615,7 @@ private fun CalendarCellContent(
     }
 
     // Check if cell is "Today"
-    val todayCal = Calendar.getInstance()
+    val todayCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Bogota"))
     val isToday = cell.isCurrentMonth &&
             cell.dayNumber == todayCal.get(Calendar.DAY_OF_MONTH) &&
             cell.calendar.get(Calendar.MONTH) == todayCal.get(Calendar.MONTH) &&
@@ -686,8 +686,10 @@ private fun RealTimeStatusCard(
     activeRestriction: Restriction?,
     holidays: List<String>
 ) {
-    val todayCal = Calendar.getInstance()
-    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    val todayCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Bogota"))
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        timeZone = java.util.TimeZone.getTimeZone("America/Bogota")
+    }
     val dateString = sdf.format(todayCal.time)
     val isHoliday = holidays.contains(dateString)
 
@@ -899,7 +901,7 @@ private fun DayDetailBottomSheet(
     val formattedDate = dayFormatter.format(cell.calendar.time)
         .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 
-    val todayCal = Calendar.getInstance()
+    val todayCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Bogota"))
     val isToday = cell.isCurrentMonth &&
             cell.dayNumber == todayCal.get(Calendar.DAY_OF_MONTH) &&
             cell.calendar.get(Calendar.MONTH) == todayCal.get(Calendar.MONTH) &&

@@ -47,7 +47,7 @@ class HomeViewModel @Inject constructor(
         val userName = profile?.name?.substringBefore(" ") ?: "Conductor"
 
         // Date formatting
-        val calendar = Calendar.getInstance()
+        val calendar = Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Bogota"))
         val dayName = calendar.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.LONG, Locale.forLanguageTag("es-CO"))
             ?.replaceFirstChar { it.uppercase() } ?: ""
         val dayNumber = calendar.get(Calendar.DAY_OF_MONTH)
