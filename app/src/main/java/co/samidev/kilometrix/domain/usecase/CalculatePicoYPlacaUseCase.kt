@@ -74,6 +74,12 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
 
         val activeRestriction = matchedCity.restrictions.firstOrNull {
             it.vehicleType.equals(vehicleType, ignoreCase = true)
+        } ?: if (vehicleType == "MOTO" || vehicleType == "TAXI") {
+            null
+        } else {
+            matchedCity.restrictions.firstOrNull {
+                it.vehicleType.equals("PARTICULAR", ignoreCase = true)
+            }
         }
 
         if (activeRestriction == null) {
