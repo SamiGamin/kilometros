@@ -2,7 +2,7 @@ package co.samidev.kilometrix.domain.model
 
 data class Vehicle(
     val id: String = "",
-    val type: String = "CAR", // CAR, MOTO, VAN
+    val type: String = "PARTICULAR", // PARTICULAR, MOTO, VAN
     val nickname: String = "",
     val brand: String = "",
     val model: String = "",

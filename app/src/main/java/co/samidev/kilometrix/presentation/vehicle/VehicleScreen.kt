@@ -34,7 +34,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 private enum class VehicleType(val labelRes: Int, val emoji: String) {
-    CAR(R.string.setup_vehicle_type_car, "🚗"),
+    PARTICULAR(R.string.setup_vehicle_type_car, "🚗"),
     MOTO(R.string.setup_vehicle_type_moto, "🏍️"),
     VAN(R.string.setup_vehicle_type_van, "🚐")
 }
@@ -430,7 +430,17 @@ private fun VehicleAddEditBottomSheet(
     onDismiss: () -> Unit,
     onConfirm: (Vehicle) -> Unit
 ) {
-    var selectedVehicleType by remember { mutableStateOf(if (isEdit && initialVehicle != null) VehicleType.valueOf(initialVehicle.type) else VehicleType.CAR) }
+    val initialType = if (isEdit && initialVehicle != null) {
+        when (initialVehicle.type) {
+            "CAR" -> VehicleType.PARTICULAR
+            "VAN" -> VehicleType.VAN
+            "MOTO" -> VehicleType.MOTO
+            else -> try { VehicleType.valueOf(initialVehicle.type) } catch(e: Exception) { VehicleType.PARTICULAR }
+        }
+    } else {
+        VehicleType.PARTICULAR
+    }
+    var selectedVehicleType by remember { mutableStateOf(initialType) }
     var nickname by remember { mutableStateOf(initialVehicle?.nickname ?: "") }
     var brand by remember { mutableStateOf(initialVehicle?.brand ?: "") }
     var model by remember { mutableStateOf(initialVehicle?.model ?: "") }

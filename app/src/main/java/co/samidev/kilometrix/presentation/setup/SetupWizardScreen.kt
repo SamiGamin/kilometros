@@ -36,7 +36,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 private enum class VehicleType(val labelRes: Int, val emoji: String) {
-    CAR(R.string.setup_vehicle_type_car, "🚗"),
+    PARTICULAR(R.string.setup_vehicle_type_car, "🚗"),
     MOTO(R.string.setup_vehicle_type_moto, "🏍️"),
     VAN(R.string.setup_vehicle_type_van, "🚐")
 }
@@ -78,7 +78,7 @@ fun SetupWizardScreen(onSetupComplete: () -> Unit) {
     var cityQuery by remember { mutableStateOf("") }
 
     // Step 2 state
-    var selectedVehicleType by remember { mutableStateOf(VehicleType.CAR) }
+    var selectedVehicleType by remember { mutableStateOf(VehicleType.PARTICULAR) }
     var nickname by remember { mutableStateOf("") }
     var brand by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }

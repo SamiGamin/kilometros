@@ -38,7 +38,7 @@ class VehicleRepositoryImpl @Inject constructor(
                     val vehicles = snapshot.documents.mapNotNull { doc ->
                         Vehicle(
                             id = doc.id,
-                            type = doc.getString("type") ?: "CAR",
+                            type = doc.getString("type") ?: "PARTICULAR",
                             nickname = doc.getString("nickname") ?: "",
                             brand = doc.getString("brand") ?: "",
                             model = doc.getString("model") ?: "",
