@@ -25,3 +25,11 @@ data class Restriction(
     @get:PropertyName("days") @set:PropertyName("days") var days: List<String> = emptyList(),
     @get:PropertyName("weekday_rules") @set:PropertyName("weekday_rules") var weekdayRules: Map<String, List<Int>>? = null
 )
+
+data class PicoPlacaStatus(
+    val statusText: String,
+    val subtext: String,
+    val isRestrictedNow: Boolean,
+    val hasData: Boolean
+)
+

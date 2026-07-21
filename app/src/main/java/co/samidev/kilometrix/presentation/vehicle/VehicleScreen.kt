@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import co.samidev.kilometrix.R
+import co.samidev.kilometrix.core.util.Resource
+import co.samidev.kilometrix.domain.model.PicoPlacaStatus
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.ui.theme.*
 import java.text.SimpleDateFormat
@@ -50,6 +52,8 @@ fun VehicleScreen() {
     val viewModel: VehicleViewModel = hiltViewModel()
     val vehicles by viewModel.vehicles.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+    val picoPlacaState by viewModel.picoPlacaState.collectAsState()
 
     var selectedVehicle by remember { mutableStateOf<Vehicle?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -234,6 +238,79 @@ fun VehicleScreen() {
                             VerticalDivider(modifier = Modifier.height(32.dp), color = OutlineVariant)
                             val alertsCount = (if (vehicle.soatEnabled) 1 else 0) + (if (vehicle.tecnomecEnabled) 1 else 0) + (if (vehicle.seguroEnabled) 1 else 0)
                             VehicleStat("$alertsCount", "Documentos")
+                        }
+
+                        // Pico y Placa Section
+                        val picoPlacaStatus = viewModel.getPicoPlacaStatus(vehicle, userProfile?.city, picoPlacaState)
+                        if (picoPlacaStatus.hasData) {
+                            val cardBg = if (picoPlacaStatus.isRestrictedNow) {
+                                ErrorContainer.copy(alpha = 0.15f)
+                            } else {
+                                PrimaryContainer.copy(alpha = 0.1f)
+                            }
+                            val borderCol = if (picoPlacaStatus.isRestrictedNow) {
+                                Error.copy(alpha = 0.5f)
+                            } else {
+                                Primary.copy(alpha = 0.3f)
+                            }
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(cardBg)
+                                    .border(1.dp, borderCol, RoundedCornerShape(16.dp))
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val icon = if (picoPlacaStatus.isRestrictedNow) "⚠️" else "✅"
+                                    Text(
+                                        text = icon,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        text = picoPlacaStatus.statusText,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (picoPlacaStatus.isRestrictedNow) OnErrorContainer else OnPrimaryContainer
+                                    )
+                                }
+                                Text(
+                                    text = picoPlacaStatus.subtext,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = OnSurfaceVariant
+                                )
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(SurfaceContainerHigh.copy(alpha = 0.5f))
+                                    .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("ℹ️", style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        text = picoPlacaStatus.statusText,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = OnSurface
+                                    )
+                                }
+                                Text(
+                                    text = picoPlacaStatus.subtext,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = OnSurfaceVariant
+                                )
+                            }
                         }
 
                         // Documents section header

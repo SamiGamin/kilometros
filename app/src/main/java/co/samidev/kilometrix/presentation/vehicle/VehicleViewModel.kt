@@ -2,8 +2,15 @@ package co.samidev.kilometrix.presentation.vehicle
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.samidev.kilometrix.core.util.Resource
+import co.samidev.kilometrix.domain.model.PicoPlacaResponse
+import co.samidev.kilometrix.domain.model.PicoPlacaStatus
+import co.samidev.kilometrix.domain.model.UserProfile
 import co.samidev.kilometrix.domain.model.Vehicle
+import co.samidev.kilometrix.domain.repository.UserRepository
 import co.samidev.kilometrix.domain.usecase.AddVehicleUseCase
+import co.samidev.kilometrix.domain.usecase.CalculatePicoYPlacaUseCase
+import co.samidev.kilometrix.domain.usecase.GetPicoYPlacaUseCase
 import co.samidev.kilometrix.domain.usecase.GetVehiclesUseCase
 import co.samidev.kilometrix.domain.usecase.UpdateVehicleUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,7 +32,10 @@ sealed interface VehicleUiState {
 class VehicleViewModel @Inject constructor(
     getVehiclesUseCase: GetVehiclesUseCase,
     private val addVehicleUseCase: AddVehicleUseCase,
-    private val updateVehicleUseCase: UpdateVehicleUseCase
+    private val updateVehicleUseCase: UpdateVehicleUseCase,
+    private val userRepository: UserRepository,
+    private val getPicoYPlacaUseCase: GetPicoYPlacaUseCase,
+    private val calculatePicoYPlacaUseCase: CalculatePicoYPlacaUseCase
 ) : ViewModel() {
 
     val vehicles: StateFlow<List<Vehicle>> = getVehiclesUseCase()
@@ -35,8 +45,30 @@ class VehicleViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    val userProfile: StateFlow<UserProfile?> = userRepository.getUserProfile()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
+    val picoPlacaState: StateFlow<Resource<PicoPlacaResponse>> = getPicoYPlacaUseCase()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = Resource.Loading
+        )
+
     private val _uiState = MutableStateFlow<VehicleUiState>(VehicleUiState.Idle)
     val uiState: StateFlow<VehicleUiState> = _uiState
+
+    fun getPicoPlacaStatus(
+        vehicle: Vehicle?,
+        userCity: String?,
+        picoResource: Resource<PicoPlacaResponse>
+    ): PicoPlacaStatus {
+        return calculatePicoYPlacaUseCase(userCity, vehicle, picoResource)
+    }
 
     fun addVehicle(vehicle: Vehicle) {
         viewModelScope.launch {
@@ -68,3 +100,4 @@ class VehicleViewModel @Inject constructor(
         _uiState.value = VehicleUiState.Idle
     }
 }
+
