@@ -181,4 +181,35 @@
     <string name="profile_income_split_label">SEPARACIÓN DE INGRESOS</string>
     <string name="profile_income_split_desc">Separa automáticamente un %% de cada ingreso para mantenimiento y ahorro.</string>
     <string name="profile_maintenance_label">Mantenimiento</string>
+
+    <!-- ── Expenses / Transactions ───────────────────────────────────────── -->
+    <string name="expense_title">Gastos</string>
+    <string name="expense_empty_title">Sin gastos registrados</string>
+    <string name="expense_empty_body">Toca el botón + para registrar tu primer gasto o llenado de combustible.</string>
+    <string name="expense_register">Registrar Gasto</string>
+    <string name="expense_save">Guardar Gasto</string>
+    <string name="expense_this_month">Este mes</string>
+    <string name="expense_type_label">TIPO DE GASTO</string>
+    <string name="expense_type_fuel">Combustible</string>
+    <string name="expense_type_maintenance">Mantenimiento</string>
+    <string name="expense_type_toll">Peaje</string>
+    <string name="expense_type_insurance">Seguro</string>
+    <string name="expense_type_parking">Parqueadero</string>
+    <string name="expense_type_other">Otro</string>
+    <string name="expense_field_gallons">Galones</string>
+    <string name="expense_field_liters">Litros</string>
+    <string name="expense_field_price_per_gal">Precio / gal</string>
+    <string name="expense_field_price_per_liter">Precio / L</string>
+    <string name="expense_field_odometer">Odómetro actual (km)</string>
+    <string name="expense_field_amount">Monto (COP)</string>
+    <string name="expense_field_notes">Notas (opcional)</string>
+    <string name="expense_odometer_previous">Odómetro anterior: %s km</string>
+    <string name="expense_odometer_hint">Registra el odómetro para calcular el rendimiento</string>
+    <string name="expense_fuel_efficiency">⛽ Rendimiento de Combustible</string>
+    <string name="expense_fuel_fillups">llenadas</string>
+    <string name="expense_fuel_total_gallons">Total galones</string>
+    <string name="expense_fuel_total_cost">Gasto total</string>
+    <string name="expense_fuel_cost_per_km">Costo/km</string>
+    <string name="expense_fuel_best">Mejor</string>
+    <string name="expense_fuel_worst">Peor</string>
 </resources>

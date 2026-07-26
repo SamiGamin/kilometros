@@ -32,7 +32,6 @@ import co.samidev.kilometrix.core.util.Resource
 import co.samidev.kilometrix.domain.model.CityData
 import co.samidev.kilometrix.domain.model.PicoPlacaResponse
 import co.samidev.kilometrix.domain.model.Restriction
-import co.samidev.kilometrix.domain.model.UserProfile
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.presentation.vehicle.VehicleViewModel
 import co.samidev.kilometrix.ui.theme.*
@@ -59,7 +58,7 @@ fun PicoYPlacaScreen(
     var showVehicleDropdown by remember { mutableStateOf(false) }
     var clickedCell by remember { mutableStateOf<CalendarDayCell?>(null) }
 
-    // Set initial selected vehicle
+    // Sync selected vehicle when list changes
     LaunchedEffect(vehicles) {
         if (vehicles.isNotEmpty() && selectedVehicle == null) {
             selectedVehicle = vehicles.first()
@@ -133,12 +132,11 @@ fun PicoYPlacaScreen(
                 }
 
                 selectedCity?.let { city ->
-                    // Resolve active vehicle info
                     val activeVehicle = selectedVehicle
                     val plate = activeVehicle?.plate ?: "ABC123"
                     val vehicleType = activeVehicle?.type ?: "PARTICULAR"
+                    val fuelType = activeVehicle?.fuel
 
-                    // Find corresponding restriction for the vehicle type in selected city
                     val activeRestriction = city.restrictions.firstOrNull {
                         it.vehicleType.equals(vehicleType, ignoreCase = true)
                     } ?: if (vehicleType == "MOTO" || vehicleType == "TAXI") {
@@ -159,7 +157,7 @@ fun PicoYPlacaScreen(
                     ) {
                         Spacer(Modifier.height(8.dp))
 
-                        // --- 1. City Selector (Tarjeta de Ubicación) ---
+                        // --- 1. City Selector ---
                         Box {
                             Row(
                                 modifier = Modifier
@@ -244,7 +242,7 @@ fun PicoYPlacaScreen(
                             }
                         }
 
-                        // --- 2. Vehicle Selector (Múltiples Vehículos) ---
+                        // --- 2. Vehicle Selector ---
                         Box {
                             Row(
                                 modifier = Modifier
@@ -275,16 +273,25 @@ fun PicoYPlacaScreen(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    val lastDigit = if (city.id == "medellin" && vehicleType == "MOTO") {
-                                        getFirstDigitOfPlate(plate)
+                                    val isElectric = fuelType.equals("ELECTRIC", ignoreCase = true)
+                                    if (isElectric) {
+                                        Text(
+                                            text = "(⚡ Eléctrico)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Secondary
+                                        )
                                     } else {
-                                        getLastDigitOfPlate(plate)
+                                        val lastDigit = if (city.id == "medellin" && vehicleType == "MOTO") {
+                                            getFirstDigitOfPlate(plate)
+                                        } else {
+                                            getLastDigitOfPlate(plate)
+                                        }
+                                        Text(
+                                            text = "(termina en $lastDigit)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Primary
+                                        )
                                     }
-                                    Text(
-                                        text = "(termina en $lastDigit)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Primary
-                                    )
                                 }
                                 Icon(
                                     imageVector = Icons.Default.ArrowDropDown,
@@ -325,7 +332,7 @@ fun PicoYPlacaScreen(
                             }
                         }
 
-                        // --- 3. Control de Mes (Navegación de Calendario) ---
+                        // --- 3. Control de Mes ---
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -359,16 +366,18 @@ fun PicoYPlacaScreen(
                             calendar = currentMonthCalendar,
                             plate = plate,
                             vehicleType = vehicleType,
+                            fuelType = fuelType,
                             city = city,
                             activeRestriction = activeRestriction,
                             holidays = data.holidays,
                             onCellClick = { cell -> clickedCell = cell }
                         )
 
-                        // --- 5. Estado del Dispositivo en Tiempo Real (💡 Bombilla) ---
+                        // --- 5. Estado del Dispositivo en Tiempo Real ---
                         RealTimeStatusCard(
                             plate = plate,
                             vehicleType = vehicleType,
+                            fuelType = fuelType,
                             city = city,
                             activeRestriction = activeRestriction,
                             holidays = data.holidays
@@ -391,7 +400,7 @@ fun PicoYPlacaScreen(
                             }
                         }
 
-                        // --- 7. Advertencia de Movilidad y Link ---
+                        // --- 7. Advertencia de Movilidad ---
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -429,6 +438,7 @@ fun PicoYPlacaScreen(
                             cell = clickedCell!!,
                             plate = selectedVehicle?.plate ?: "ABC123",
                             vehicleType = selectedVehicle?.type ?: "PARTICULAR",
+                            fuelType = selectedVehicle?.fuel,
                             city = selectedCity ?: cities.first(),
                             activeRestriction = (selectedCity ?: cities.first()).restrictions.firstOrNull {
                                 it.vehicleType.equals(selectedVehicle?.type ?: "PARTICULAR", ignoreCase = true)
@@ -470,6 +480,7 @@ private fun CalendarGrid(
     calendar: Calendar,
     plate: String,
     vehicleType: String,
+    fuelType: String?,
     city: CityData,
     activeRestriction: Restriction?,
     holidays: List<String>,
@@ -478,7 +489,6 @@ private fun CalendarGrid(
     val weekDays = listOf("L", "M", "M", "J", "V", "S", "D")
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Weekday Headers
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             weekDays.forEach { day ->
                 Text(
@@ -493,12 +503,9 @@ private fun CalendarGrid(
 
         Spacer(Modifier.height(8.dp))
 
-        // Get calendar days grid
         val tempCal = calendar.clone() as Calendar
         tempCal.set(Calendar.DAY_OF_MONTH, 1)
 
-        // Find offset: Sunday in Java Calendar is 1, Monday is 2
-        // We want Monday (2) to be index 0, Tuesday (3) index 1... Sunday (1) index 6
         val firstDayOfWeekInMonth = tempCal.get(Calendar.DAY_OF_WEEK)
         val offset = when (firstDayOfWeekInMonth) {
             Calendar.MONDAY -> 0
@@ -513,7 +520,6 @@ private fun CalendarGrid(
 
         val daysInMonth = tempCal.getActualMaximum(Calendar.DAY_OF_MONTH)
 
-        // Previous month days to fill starting offset
         val prevMonthCal = tempCal.clone() as Calendar
         prevMonthCal.add(Calendar.MONTH, -1)
         val prevMonthDays = prevMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
@@ -522,7 +528,6 @@ private fun CalendarGrid(
         val totalCells = if (neededCells <= 35) 35 else 42
         val cells = mutableListOf<CalendarDayCell>()
 
-        // Add previous month faded cells
         for (i in offset - 1 downTo 0) {
             val d = prevMonthDays - i
             val cellCal = prevMonthCal.clone() as Calendar
@@ -530,14 +535,12 @@ private fun CalendarGrid(
             cells.add(CalendarDayCell(d, isCurrentMonth = false, calendar = cellCal))
         }
 
-        // Add current month cells
         for (d in 1..daysInMonth) {
             val cellCal = tempCal.clone() as Calendar
             cellCal.set(Calendar.DAY_OF_MONTH, d)
             cells.add(CalendarDayCell(d, isCurrentMonth = true, calendar = cellCal))
         }
 
-        // Add next month faded cells to complete the grid
         val nextMonthCal = tempCal.clone() as Calendar
         nextMonthCal.add(Calendar.MONTH, 1)
         var nextMonthDay = 1
@@ -548,7 +551,6 @@ private fun CalendarGrid(
             nextMonthDay++
         }
 
-        // Render rows
         val chunkedCells = cells.chunked(7)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             chunkedCells.forEach { weekRow ->
@@ -570,6 +572,7 @@ private fun CalendarGrid(
                                 cell = cell,
                                 plate = plate,
                                 vehicleType = vehicleType,
+                                fuelType = fuelType,
                                 city = city,
                                 activeRestriction = activeRestriction,
                                 holidays = holidays
@@ -593,6 +596,7 @@ private fun CalendarCellContent(
     cell: CalendarDayCell,
     plate: String,
     vehicleType: String,
+    fuelType: String?,
     city: CityData,
     activeRestriction: Restriction?,
     holidays: List<String>
@@ -600,13 +604,14 @@ private fun CalendarCellContent(
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val dateString = sdf.format(cell.calendar.time)
     val isHoliday = holidays.contains(dateString)
+    val isElectric = fuelType.equals("ELECTRIC", ignoreCase = true)
 
-    // Check restriction
-    val isRestricted = if (cell.isCurrentMonth && !isHoliday && activeRestriction != null) {
+    val isRestricted = if (cell.isCurrentMonth && !isHoliday && !isElectric && activeRestriction != null) {
         checkIfRestricted(
             calendar = cell.calendar,
             plate = plate,
             vehicleType = vehicleType,
+            fuelType = fuelType,
             city = city,
             restriction = activeRestriction
         )
@@ -614,14 +619,12 @@ private fun CalendarCellContent(
         false
     }
 
-    // Check if cell is "Today"
     val todayCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Bogota"))
     val isToday = cell.isCurrentMonth &&
             cell.dayNumber == todayCal.get(Calendar.DAY_OF_MONTH) &&
             cell.calendar.get(Calendar.MONTH) == todayCal.get(Calendar.MONTH) &&
             cell.calendar.get(Calendar.YEAR) == todayCal.get(Calendar.YEAR)
 
-    // Determine colors
     val isWeekend = cell.calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
             cell.calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
 
@@ -682,10 +685,12 @@ private fun CalendarCellContent(
 private fun RealTimeStatusCard(
     plate: String,
     vehicleType: String,
+    fuelType: String?,
     city: CityData,
     activeRestriction: Restriction?,
     holidays: List<String>
 ) {
+    val isElectric = fuelType.equals("ELECTRIC", ignoreCase = true)
     val todayCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Bogota"))
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
         timeZone = java.util.TimeZone.getTimeZone("America/Bogota")
@@ -705,12 +710,12 @@ private fun RealTimeStatusCard(
         else -> ""
     }
 
-    // Check if restriction applies today
-    val isRestrictedDay = if (!isHoliday && activeRestriction != null && activeRestriction.days.contains(dayName)) {
+    val isRestrictedDay = if (!isElectric && !isHoliday && activeRestriction != null && activeRestriction.days.contains(dayName)) {
         checkIfRestricted(
             calendar = todayCal,
             plate = plate,
             vehicleType = vehicleType,
+            fuelType = fuelType,
             city = city,
             restriction = activeRestriction
         )
@@ -723,40 +728,49 @@ private fun RealTimeStatusCard(
     val schedule = activeRestriction?.schedule ?: "No aplica"
     val formattedScheduleDisplay = schedule.split("y").map { convert24hRangeTo12h(it.trim()) }.joinToString(" y ")
 
-    if (isHoliday) {
-        statusText = "Hoy puedes circular libremente"
+    val currentHour = todayCal.get(Calendar.HOUR_OF_DAY)
+    val currentMinute = todayCal.get(Calendar.MINUTE)
+    val currentMinutesSinceMidnight = currentHour * 60 + currentMinute
+
+    val inRestrictionTime = if (activeRestriction != null) {
+        checkRestrictionTime(currentMinutesSinceMidnight, schedule)
+    } else {
+        false
+    }
+
+    if (isElectric) {
+        statusText = "🟢 Libre de circular"
+        subtext = "Vehículo eléctrico exento de Pico y Placa en ${city.name}."
+    } else if (isHoliday) {
+        statusText = "🟢 Libre de circular"
         subtext = "Los días festivos no aplica restricción en ${city.name}."
     } else if (dayOfWeek == Calendar.SUNDAY) {
-        statusText = "Hoy puedes circular libremente"
+        statusText = "🟢 Libre de circular"
         subtext = "Los domingos no aplica restricción en ${city.name}."
     } else if (isRestrictedDay) {
-        // Evaluate hour
-        val currentHour = todayCal.get(Calendar.HOUR_OF_DAY)
-        val currentMinute = todayCal.get(Calendar.MINUTE)
-        val currentMinutesSinceMidnight = currentHour * 60 + currentMinute
-
-        // Parse schedules (e.g. 6:00 - 21:00 or split schedules like 6:00-9:00 y 15:00-21:00)
-        val inRestrictionTime = checkRestrictionTime(currentMinutesSinceMidnight, schedule)
-
         if (inRestrictionTime) {
-            statusText = "⚠️ Actualmente tienes restricción"
-            subtext = "Tu placa termina en ${if (city.id == "medellin" && vehicleType == "MOTO") getFirstDigitOfPlate(plate) else getLastDigitOfPlate(plate)} y la restricción aplica de $formattedScheduleDisplay."
+            statusText = "🔴 En horario de restricción"
+            val digit = if (city.id == "medellin" && vehicleType == "MOTO") getFirstDigitOfPlate(plate) else getLastDigitOfPlate(plate)
+            subtext = "Tu placa termina en $digit y la restricción aplica de $formattedScheduleDisplay hoy en ${city.name}."
         } else {
-            statusText = "Estás fuera de horario de restricción"
-            subtext = "La restricción aplica hoy de $formattedScheduleDisplay. Actualmente puedes circular libremente."
+            statusText = "🟢 Libre de circular (Fuera de horario)"
+            subtext = "Hoy aplica de $formattedScheduleDisplay. ¡Puedes circular libremente ahora!"
         }
     } else {
-        statusText = "Hoy puedes circular libremente"
+        statusText = "🟢 Libre de circular"
         val endingText = if (city.id == "medellin" && vehicleType == "MOTO") "inicia" else "termina"
-        subtext = "Tu placa $endingText en ${if (city.id == "medellin" && vehicleType == "MOTO") getFirstDigitOfPlate(plate) else getLastDigitOfPlate(plate)} y no tiene restricción programada para hoy en ${city.name}."
+        val digit = if (city.id == "medellin" && vehicleType == "MOTO") getFirstDigitOfPlate(plate) else getLastDigitOfPlate(plate)
+        subtext = "Tu placa $endingText en $digit y no tiene restricción programada hoy en ${city.name}."
     }
+
+    val isAlert = isRestrictedDay && inRestrictionTime
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceContainerLow)
-            .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+            .background(if (isAlert) Color(0xFFFF5252).copy(alpha = 0.12f) else SurfaceContainerLow)
+            .border(1.dp, if (isAlert) Color(0xFFFF5252).copy(alpha = 0.4f) else CardBorder, RoundedCornerShape(16.dp))
             .padding(16.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -765,16 +779,16 @@ private fun RealTimeStatusCard(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFFFD700).copy(alpha = 0.15f)),
+                .background(if (isAlert) Color(0xFFFF5252).copy(alpha = 0.2f) else Color(0xFF00FF9D).copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
-            Text("💡", style = androidx.compose.ui.text.TextStyle(fontSize = 20.sp))
+            Text(if (isAlert) "🔴" else "🟢", style = androidx.compose.ui.text.TextStyle(fontSize = 20.sp))
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = statusText,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = if (statusText.startsWith("⚠️")) Color(0xFFFF5252) else OnSurface
+                color = if (isAlert) Color(0xFFFF5252) else OnSurface
             )
             Text(
                 text = subtext,
@@ -785,14 +799,21 @@ private fun RealTimeStatusCard(
     }
 }
 
-// Internal algorithm calculations
 private fun checkIfRestricted(
     calendar: Calendar,
     plate: String,
     vehicleType: String,
+    fuelType: String? = null,
     city: CityData,
     restriction: Restriction
 ): Boolean {
+    if (fuelType.equals("ELECTRIC", ignoreCase = true)) {
+        return false
+    }
+    if (city.id == "bogota" && vehicleType == "MOTO") {
+        return false
+    }
+
     val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
     val calendarDay = calendar.get(Calendar.DAY_OF_MONTH)
 
@@ -844,10 +865,9 @@ private fun checkIfRestricted(
 }
 
 private fun checkRestrictionTime(currentMinutesSinceMidnight: Int, schedule: String): Boolean {
-    // Parser for split schedules like "6:00-9:00 y 15:00-21:00" or single schedules like "6:00 - 21:00"
     val parts = schedule.split("y").map { it.trim() }
     for (part in parts) {
-        val range = part.split("-").map { it.trim() }
+        val range = splitRange(part)
         if (range.size == 2) {
             val startMinutes = parseTimeString(range[0])
             val endMinutes = parseTimeString(range[1])
@@ -859,23 +879,42 @@ private fun checkRestrictionTime(currentMinutesSinceMidnight: Int, schedule: Str
     return false
 }
 
+private fun splitRange(rangeStr: String): List<String> {
+    return when {
+        rangeStr.contains("-") -> rangeStr.split("-")
+        rangeStr.contains(" a ") -> rangeStr.split(" a ")
+        rangeStr.contains(" hasta ") -> rangeStr.split(" hasta ")
+        else -> emptyList()
+    }.map { it.trim() }.filter { it.isNotEmpty() }
+}
+
 private fun parseTimeString(timeStr: String): Int {
-    try {
-        val parts = timeStr.lowercase().replace("a.m.", "").replace("p.m.", "").trim().split(":")
-        val hours = parts[0].toInt()
-        val minutes = if (parts.size > 1) parts[1].toInt() else 0
+    val clean = timeStr.trim().lowercase(Locale.US).replace(".", "")
+    val isPm = clean.contains("pm")
+    val isAm = clean.contains("am")
+    val digitsOnly = clean.replace("am", "").replace("pm", "").trim()
+    val parts = digitsOnly.split(":")
+    if (parts.isNotEmpty()) {
+        var hours = parts[0].trim().toIntOrNull() ?: 0
+        val minutes = if (parts.size > 1) parts[1].trim().toIntOrNull() ?: 0 else 0
+        if (isPm && hours < 12) {
+            hours += 12
+        } else if (isAm && hours == 12) {
+            hours = 0
+        }
         return hours * 60 + minutes
-    } catch (e: Exception) {
-        return 0
     }
+    return 0
 }
 
 private fun getLastDigitOfPlate(plate: String): Int {
-    return plate.lastOrNull { it.isDigit() }?.toString()?.toIntOrNull() ?: 0
+    val numericPart = plate.filter { it.isDigit() }
+    return if (numericPart.isNotEmpty()) numericPart.last().toString().toInt() else 0
 }
 
 private fun getFirstDigitOfPlate(plate: String): Int {
-    return plate.firstOrNull { it.isDigit() }?.toString()?.toIntOrNull() ?: 0
+    val numericPart = plate.filter { it.isDigit() }
+    return if (numericPart.isNotEmpty()) numericPart.first().toString().toInt() else 0
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -884,6 +923,7 @@ private fun DayDetailBottomSheet(
     cell: CalendarDayCell,
     plate: String,
     vehicleType: String,
+    fuelType: String?,
     city: CityData,
     activeRestriction: Restriction?,
     holidays: List<String>,
@@ -894,9 +934,8 @@ private fun DayDetailBottomSheet(
     val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val dateString = sdf.format(cell.calendar.time)
     val isHoliday = holidays.contains(dateString)
+    val isElectric = fuelType.equals("ELECTRIC", ignoreCase = true)
 
-    val dayOfWeek = cell.calendar.get(Calendar.DAY_OF_WEEK)
-    
     val dayFormatter = SimpleDateFormat("EEEE d 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-CO"))
     val formattedDate = dayFormatter.format(cell.calendar.time)
         .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
@@ -909,40 +948,25 @@ private fun DayDetailBottomSheet(
 
     val titleText = if (isToday) "$formattedDate · HOY" else formattedDate
 
-    val holidayName = when (dateString.substringAfter("-")) {
-        "01-01" -> "Año Nuevo"
-        "01-12" -> "Día de los Reyes Magos"
-        "03-23" -> "Día de San José"
-        "04-02" -> "Jueves Santo"
-        "04-03" -> "Viernes Santo"
-        "05-01" -> "Día del Trabajo"
-        "05-18" -> "Día de la Ascensión"
-        "06-08" -> "Corpus Christi"
-        "06-15" -> "Sagrado Corazón"
-        "06-29" -> "San Pedro y San Pablo"
-        "07-13" -> "Festivo Especial"
-        "07-20" -> "Día de la Independencia"
-        "08-07" -> "Batalla de Boyacá"
-        "08-17" -> "Día de la Asunción"
-        "10-12" -> "Día de la Raza"
-        "11-02" -> "Día de Todos los Santos"
-        "11-16" -> "Independencia de Cartagena"
-        "12-08" -> "Día de la Inmaculada Concepción"
-        "12-25" -> "Navidad"
-        else -> "Festivo"
-    }
-
-    val isRestricted = if (!isHoliday && activeRestriction != null) {
+    val isRestrictedDay = if (!isElectric && !isHoliday && activeRestriction != null) {
         checkIfRestricted(
             calendar = cell.calendar,
             plate = plate,
             vehicleType = vehicleType,
+            fuelType = fuelType,
             city = city,
             restriction = activeRestriction
         )
     } else {
         false
     }
+
+    val schedule = activeRestriction?.schedule ?: "No aplica"
+
+    val currentHour = todayCal.get(Calendar.HOUR_OF_DAY)
+    val currentMinute = todayCal.get(Calendar.MINUTE)
+    val currentMinutesSinceMidnight = currentHour * 60 + currentMinute
+    val inRestrictionTimeNow = isToday && checkRestrictionTime(currentMinutesSinceMidnight, schedule)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -964,17 +988,15 @@ private fun DayDetailBottomSheet(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val badgeColor = when {
-                    isHoliday -> Color(0xFFFFA500) // Orange
-                    isRestricted -> Color(0xFFFF5252) // Red
-                    else -> Color(0xFF00FF9D) // Green
+                val (badgeColor, badgeText) = when {
+                    isElectric -> Pair(Color(0xFF00FF9D), "⚡ Exento · Vehículo Eléctrico")
+                    isHoliday -> Pair(Color(0xFFFFD700), "🟠 Festivo · Sin restricción")
+                    isRestrictedDay && isToday && inRestrictionTimeNow -> Pair(Color(0xFFFF5252), "🔴 Restringido AHORA (En Horario)")
+                    isRestrictedDay && isToday && !inRestrictionTimeNow -> Pair(Color(0xFF00FF9D), "🟢 Libre de circular AHORA (Fuera de Horario)")
+                    isRestrictedDay -> Pair(Color(0xFFFF5252), "🔴 Día con restricción")
+                    else -> Pair(Color(0xFF00FF9D), "🟢 Día libre")
                 }
-                val badgeText = when {
-                    isHoliday -> "🟠 Festivo · $holidayName"
-                    isRestricted -> "🔴 Restringido"
-                    else -> "🟢 Día libre"
-                }
-                
+
                 Text(
                     badgeText,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
@@ -982,19 +1004,23 @@ private fun DayDetailBottomSheet(
                 )
             }
 
-            if (isHoliday) {
+            if (isElectric) {
+                Text(
+                    text = "Los vehículos eléctricos están 100% exentos de Pico y Placa en todas las ciudades del país.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OnSurfaceVariant
+                )
+            } else if (isHoliday) {
                 Text(
                     text = "En festivos nacionales no aplica Pico y Placa en ninguna ciudad de Colombia. Puedes circular libremente.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = OnSurfaceVariant
                 )
-            } else if (isRestricted) {
+            } else if (isRestrictedDay) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    val schedule = activeRestriction?.schedule ?: "No aplica"
-                    
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "HORARIOS",
+                            text = "HORARIOS DE RESTRICCIÓN",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                             color = OnSurfaceVariant
                         )
@@ -1006,7 +1032,7 @@ private fun DayDetailBottomSheet(
                                 "Horario continuo"
                             }
                             Text(
-                                text = "• ${convert24hRangeTo12h(part)}  $label",
+                                text = "• ${convert24hRangeTo12h(part)}  ($label)",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = OnSurface
                             )
@@ -1015,7 +1041,7 @@ private fun DayDetailBottomSheet(
 
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "FUERA DE ESOS HORARIOS",
+                            text = "ESTADO ACTUAL",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
                             color = OnSurfaceVariant
                         )
@@ -1023,9 +1049,15 @@ private fun DayDetailBottomSheet(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("✅", style = MaterialTheme.typography.bodyMedium)
+                            val statusIcon = if (isToday && !inRestrictionTimeNow) "✅" else if (isToday) "🛑" else "ℹ️"
+                            val statusDetail = when {
+                                isToday && inRestrictionTimeNow -> "Estás en horario de restricción activa. Evita circular."
+                                isToday -> "Estás fuera del horario de restricción. ¡Puedes circular libremente ahora!"
+                                else -> "Día con restricción para placas terminadas en ${getLastDigitOfPlate(plate)}."
+                            }
+                            Text(statusIcon, style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                text = "Puedes circular sin restricción.",
+                                text = statusDetail,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = OnSurface
                             )
@@ -1075,7 +1107,7 @@ private fun DayDetailBottomSheet(
 }
 
 private fun convert24hRangeTo12h(range: String): String {
-    val parts = range.split("-").map { it.trim() }
+    val parts = splitRange(range)
     if (parts.size == 2) {
         val start12 = formatTo12h(parts[0])
         val end12 = formatTo12h(parts[1])
@@ -1085,19 +1117,12 @@ private fun convert24hRangeTo12h(range: String): String {
 }
 
 private fun formatTo12h(timeStr: String): String {
-    try {
-        val parts = timeStr.split(":")
-        if (parts.size >= 2) {
-            val hours = parts[0].toIntOrNull() ?: return timeStr
-            val minutes = parts[1].toIntOrNull() ?: 0
-            val amPm = if (hours >= 12) " pm" else " am"
-            var hours12 = hours % 12
-            if (hours12 == 0) hours12 = 12
-            val minutesStr = String.format("%02d", minutes)
-            return "$hours12:$minutesStr $amPm"
-        }
-    } catch (e: Exception) {
-        // Fallback
-    }
-    return timeStr
+    val minutesSinceMidnight = parseTimeString(timeStr)
+    val hours = minutesSinceMidnight / 60
+    val minutes = minutesSinceMidnight % 60
+    val amPm = if (hours >= 12) "pm" else "am"
+    var hours12 = hours % 12
+    if (hours12 == 0) hours12 = 12
+    val minutesStr = String.format("%02d", minutes)
+    return "$hours12:$minutesStr $amPm"
 }

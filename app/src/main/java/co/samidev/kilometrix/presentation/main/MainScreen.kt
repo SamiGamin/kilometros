@@ -21,12 +21,18 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import co.samidev.kilometrix.R
+import co.samidev.kilometrix.domain.model.ExpenseType
 import co.samidev.kilometrix.presentation.analytics.AnalyticsScreen
 import co.samidev.kilometrix.presentation.home.HomeScreen
 import co.samidev.kilometrix.presentation.profile.ProfileScreen
+import co.samidev.kilometrix.presentation.transactions.ActionState
+import co.samidev.kilometrix.presentation.transactions.AddExpenseBottomSheet
+import co.samidev.kilometrix.presentation.transactions.RefuelCycleType
 import co.samidev.kilometrix.presentation.transactions.TransactionsScreen
+import co.samidev.kilometrix.presentation.transactions.TransactionsViewModel
 import co.samidev.kilometrix.presentation.vehicle.VehicleScreen
 import co.samidev.kilometrix.ui.theme.*
+import androidx.hilt.navigation.compose.hiltViewModel
 
 private enum class Tab(val labelRes: Int, val emoji: String) {
     HOME(R.string.nav_home, "🏠"),
@@ -42,6 +48,20 @@ fun MainScreen(
     onNavigateToPicoPlaca: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(Tab.HOME) }
+    var showAddExpenseSheet by remember { mutableStateOf(false) }
+
+    // ViewModel compartido — instancia única para el sheet global
+    val transactionsViewModel: TransactionsViewModel = hiltViewModel()
+    val selectedVehicle by transactionsViewModel.selectedVehicle.collectAsState()
+    val actionState by transactionsViewModel.actionState.collectAsState()
+
+    // Cierra el sheet automáticamente al guardar exitosamente
+    LaunchedEffect(actionState) {
+        if (actionState is ActionState.Success) {
+            showAddExpenseSheet = false
+            transactionsViewModel.resetActionState()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
 
@@ -70,11 +90,38 @@ fun MainScreen(
         ) { tab ->
             when (tab) {
                 Tab.HOME -> HomeScreen(onNavigateToPicoPlaca = onNavigateToPicoPlaca)
-                Tab.TRANSACTIONS -> TransactionsScreen()
+                Tab.TRANSACTIONS -> TransactionsScreen(viewModel = transactionsViewModel)
                 Tab.VEHICLE -> VehicleScreen()
                 Tab.ANALYTICS -> AnalyticsScreen()
                 Tab.PROFILE -> ProfileScreen(onLogout = onLogout)
             }
+        }
+
+        // ── Sheet global: aparece sobre cualquier tab ───────────────────────
+        if (showAddExpenseSheet) {
+            AddExpenseBottomSheet(
+                vehicle = selectedVehicle,
+                previousOdometer = selectedVehicle?.odometer ?: 0,
+                onDismiss = { showAddExpenseSheet = false },
+                onSave = { expense, fuelUnit, quantity, pricePerUnit, odometerNow, cycleType ->
+                    val vehicleOdometer = selectedVehicle?.odometer ?: 0
+                    val finalExpense = if (expense.type == ExpenseType.FUEL) {
+                        val fuelDetails = transactionsViewModel.buildFuelDetails(
+                            enteredQuantity = quantity,
+                            enteredUnit = fuelUnit,
+                            pricePerUnit = pricePerUnit,
+                            odometerAtRefuel = odometerNow,
+                            previousOdometer = vehicleOdometer,
+                            isReserve = cycleType.isReserve,
+                            isFullTank = cycleType.isFullTank,
+                            isPartial = cycleType.isPartial
+                        )
+                        expense.copy(fuelDetails = fuelDetails)
+                    } else expense
+                    transactionsViewModel.addExpense(finalExpense)
+                },
+                viewModel = transactionsViewModel
+            )
         }
 
         // ── FAB with entrance animation ────────────────────────────────────
@@ -87,7 +134,7 @@ fun MainScreen(
                 .padding(end = 20.dp, bottom = 88.dp)
         ) {
             FloatingActionButton(
-                onClick = { /* TODO: open add transaction bottom sheet */ },
+                onClick = { showAddExpenseSheet = true },
                 containerColor = PrimaryContainer,
                 contentColor = Color.White,
                 shape = CircleShape,

@@ -61,15 +61,26 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
 
         val vehicleType = activeVehicle.type
         val plate = activeVehicle.plate
-        if (matchedCity.id == "bogota" && (vehicleType == "MOTO" || vehicleType == "TAXI")) {
-            if (vehicleType == "MOTO") {
-                return PicoPlacaStatus(
-                    statusText = "¡Puedes circular libremente!",
-                    subtext = "Las motos no tienen restricción en Bogotá D.C.",
-                    isRestrictedNow = false,
-                    hasData = true
-                )
-            }
+        val fuel = activeVehicle.fuel
+
+        // 1. Exención total para vehículos eléctricos
+        if (fuel.equals("ELECTRIC", ignoreCase = true)) {
+            return PicoPlacaStatus(
+                statusText = "🟢 Libre de circular",
+                subtext = "Vehículo 100% eléctrico exento de Pico y Placa en ${matchedCity.name}",
+                isRestrictedNow = false,
+                hasData = true
+            )
+        }
+
+        // 2. Exención para motos en Bogotá
+        if (matchedCity.id == "bogota" && vehicleType == "MOTO") {
+            return PicoPlacaStatus(
+                statusText = "🟢 Libre de circular",
+                subtext = "Las motos no tienen restricción en Bogotá D.C.",
+                isRestrictedNow = false,
+                hasData = true
+            )
         }
 
         val activeRestriction = matchedCity.restrictions.firstOrNull {
@@ -84,7 +95,7 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
 
         if (activeRestriction == null) {
             return PicoPlacaStatus(
-                statusText = "Sin restricciones hoy para la placa ${plate.uppercase()}",
+                statusText = "🟢 Libre de circular",
                 subtext = "Tu vehículo no tiene restricciones en ${matchedCity.name} hoy",
                 isRestrictedNow = false,
                 hasData = true
@@ -98,55 +109,68 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
         val isHoliday = data.holidays.contains(dateString)
         val dayOfWeek = todayCal.get(Calendar.DAY_OF_WEEK)
 
+        // 3. Exención por día festivo
         if (isHoliday) {
             return PicoPlacaStatus(
-                statusText = "Sin restricciones hoy para la placa ${plate.uppercase()}",
+                statusText = "🟢 Libre de circular",
                 subtext = "No aplica Pico y Placa por día festivo en ${matchedCity.name}",
                 isRestrictedNow = false,
                 hasData = true
             )
         }
 
-        if (dayOfWeek == Calendar.SUNDAY) {
+        // 4. Exención por fin de semana (Sábado y Domingo)
+        if (dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY) {
             return PicoPlacaStatus(
-                statusText = "Sin restricciones hoy para la placa ${plate.uppercase()}",
-                subtext = "No aplica Pico y Placa los domingos",
+                statusText = "🟢 Libre de circular",
+                subtext = "Los fines de semana (Sábado y Domingo) no aplica Pico y Placa en ${matchedCity.name}",
                 isRestrictedNow = false,
                 hasData = true
             )
         }
+
+        val lastDigit = if (matchedCity.id == "medellin" && vehicleType == "MOTO") getFirstDigitOfPlate(plate) else getLastDigitOfPlate(plate)
+        val endStr = if (matchedCity.id == "medellin" && vehicleType == "MOTO") "inicia" else "termina"
 
         val isRestrictedDay = checkIfRestricted(todayCal, plate, vehicleType, matchedCity, activeRestriction)
+        val formattedSchedule = activeRestriction.schedule.split("y")
+            .map { convert24hRangeTo12h(it.trim()) }.joinToString(" y ")
+
         if (!isRestrictedDay) {
-            val endStr = if (matchedCity.id == "medellin" && vehicleType == "MOTO") "inicia" else "termina"
-            val digit = if (matchedCity.id == "medellin" && vehicleType == "MOTO") getFirstDigitOfPlate(plate) else getLastDigitOfPlate(plate)
+            val calendarDay = todayCal.get(Calendar.DAY_OF_MONTH)
+            val isEvenDay = calendarDay % 2 == 0
+            val subtextDetail = if (activeRestriction.algorithm == "BOGOTA_PARITY") {
+                "Hoy es día ${if (isEvenDay) "par (circulan 6-7-8-9-0)" else "impar (circulan 1-2-3-4-5)"}. Tu placa termina en $lastDigit y tiene libre circulación."
+            } else {
+                "Tu placa $endStr en $lastDigit y no tiene restricción programada hoy en ${matchedCity.name}."
+            }
+
             return PicoPlacaStatus(
-                statusText = "Sin restricciones hoy para la placa ${plate.uppercase()}",
-                subtext = "Tu placa $endStr en $digit y no tiene restricción hoy en ${matchedCity.name}",
+                statusText = "🟢 Libre de circular",
+                subtext = subtextDetail,
                 isRestrictedNow = false,
                 hasData = true
             )
         }
 
+        // 5. Día laborable CON restricción programada: Evaluar hora actual del dispositivo
         val currentHour = todayCal.get(Calendar.HOUR_OF_DAY)
         val currentMinute = todayCal.get(Calendar.MINUTE)
         val currentMinutesSinceMidnight = currentHour * 60 + currentMinute
 
         val inRestrictionTime = checkRestrictionTime(currentMinutesSinceMidnight, activeRestriction.schedule)
-        val formattedSchedule = activeRestriction.schedule.split("y")
-            .map { convert24hRangeTo12h(it.trim()) }.joinToString(" y ")
 
         return if (inRestrictionTime) {
             PicoPlacaStatus(
-                statusText = "⚠️ Actualmente restringido",
-                subtext = "Aplica hoy en ${matchedCity.name} de $formattedSchedule",
+                statusText = "🔴 En horario de restricción",
+                subtext = "Tu placa $endStr en $lastDigit. Restricción activa hoy de $formattedSchedule en ${matchedCity.name}.",
                 isRestrictedNow = true,
                 hasData = true
             )
         } else {
             PicoPlacaStatus(
-                statusText = "Fuera de horario de restricción",
-                subtext = "Hoy aplica de $formattedSchedule. ¡Puedes circular libremente ahora!",
+                statusText = "🟢 Libre de circular (Fuera de horario)",
+                subtext = "Tu placa $endStr en $lastDigit. Hoy la restricción aplica de $formattedSchedule. ¡Puedes circular libremente ahora!",
                 isRestrictedNow = false,
                 hasData = true
             )
@@ -211,9 +235,12 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
     }
 
     private fun checkRestrictionTime(currentMinutesSinceMidnight: Int, schedule: String): Boolean {
+        if (schedule.contains("todo el día", ignoreCase = true) || schedule.contains("24 horas", ignoreCase = true)) {
+            return true
+        }
         val parts = schedule.split("y").map { it.trim() }
         for (part in parts) {
-            val range = part.split("-").map { it.trim() }
+            val range = splitRange(part)
             if (range.size == 2) {
                 val startMinutes = parseTimeString(range[0])
                 val endMinutes = parseTimeString(range[1])
@@ -225,12 +252,29 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
         return false
     }
 
+    private fun splitRange(rangeStr: String): List<String> {
+        return when {
+            rangeStr.contains("-") -> rangeStr.split("-")
+            rangeStr.contains(" a ") -> rangeStr.split(" a ")
+            rangeStr.contains(" hasta ") -> rangeStr.split(" hasta ")
+            else -> emptyList()
+        }.map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
     private fun parseTimeString(timeStr: String): Int {
-        val clean = timeStr.trim()
-        val parts = clean.split(":")
-        if (parts.size >= 2) {
-            val hours = parts[0].toIntOrNull() ?: 0
-            val minutes = parts[1].toIntOrNull() ?: 0
+        val clean = timeStr.trim().lowercase(Locale.US).replace(".", "")
+        val isPm = clean.contains("pm")
+        val isAm = clean.contains("am")
+        val digitsOnly = clean.replace("am", "").replace("pm", "").trim()
+        val parts = digitsOnly.split(":")
+        if (parts.isNotEmpty()) {
+            var hours = parts[0].trim().toIntOrNull() ?: 0
+            val minutes = if (parts.size > 1) parts[1].trim().toIntOrNull() ?: 0 else 0
+            if (isPm && hours < 12) {
+                hours += 12
+            } else if (isAm && hours == 12) {
+                hours = 0
+            }
             return hours * 60 + minutes
         }
         return 0
@@ -247,7 +291,7 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
     }
 
     private fun convert24hRangeTo12h(range: String): String {
-        val parts = range.split("-").map { it.trim() }
+        val parts = splitRange(range)
         if (parts.size == 2) {
             val start12 = formatTo12h(parts[0])
             val end12 = formatTo12h(parts[1])
@@ -257,20 +301,13 @@ class CalculatePicoYPlacaUseCase @Inject constructor() {
     }
 
     private fun formatTo12h(timeStr: String): String {
-        try {
-            val parts = timeStr.split(":")
-            if (parts.size >= 2) {
-                val hours = parts[0].toIntOrNull() ?: return timeStr
-                val minutes = parts[1].toIntOrNull() ?: 0
-                val amPm = if (hours >= 12) " pm" else " am"
-                var hours12 = hours % 12
-                if (hours12 == 0) hours12 = 12
-                val minutesStr = String.format("%02d", minutes)
-                return "$hours12:$minutesStr$amPm"
-            }
-        } catch (e: Exception) {
-            // Fallback
-        }
-        return timeStr
+        val minutesSinceMidnight = parseTimeString(timeStr)
+        val hours = minutesSinceMidnight / 60
+        val minutes = minutesSinceMidnight % 60
+        val amPm = if (hours >= 12) "pm" else "am"
+        var hours12 = hours % 12
+        if (hours12 == 0) hours12 = 12
+        val minutesStr = String.format("%02d", minutes)
+        return "$hours12:$minutesStr $amPm"
     }
 }
