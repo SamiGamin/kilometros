@@ -383,7 +383,8 @@ private fun AddExpenseSheetContent(
                         onValueChange = { pricePerUnitText = it },
                         label = priceLabel,
                         prefix = "$",
-                        keyboardType = KeyboardType.Decimal
+                        keyboardType = KeyboardType.Decimal,
+                        visualTransformation = co.samidev.kilometrix.presentation.util.ThousandSeparatorVisualTransformation()
                     )
                 }
 
@@ -397,6 +398,7 @@ private fun AddExpenseSheetContent(
                     label = "Odómetro actual (km)",
                     prefix = null,
                     keyboardType = KeyboardType.Number,
+                    visualTransformation = co.samidev.kilometrix.presentation.util.ThousandSeparatorVisualTransformation(),
                     isError = odometerError != null,
                     supportingText = odometerError
                         ?: if (previousOdometer > 0)
@@ -470,7 +472,8 @@ private fun AddExpenseSheetContent(
                 onValueChange = { amountText = it },
                 label = "Monto (COP)",
                 prefix = "$",
-                keyboardType = KeyboardType.Decimal
+                keyboardType = KeyboardType.Decimal,
+                visualTransformation = co.samidev.kilometrix.presentation.util.ThousandSeparatorVisualTransformation()
             )
         }
 
@@ -752,7 +755,8 @@ private fun ExpenseTextField(
     supportingText: String? = null,
     supportingTextIsError: Boolean = false,
     isError: Boolean = false,
-    maxLines: Int = 1
+    maxLines: Int = 1,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None
 ) {
     OutlinedTextField(
         value = value,
@@ -764,6 +768,7 @@ private fun ExpenseTextField(
         maxLines = maxLines,
         shape = RoundedCornerShape(12.dp),
         isError = isError,
+        visualTransformation = visualTransformation,
         supportingText = if (supportingText != null) ({
             Text(
                 text = supportingText,

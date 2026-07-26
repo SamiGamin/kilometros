@@ -11,6 +11,7 @@
 /build
 /captures
 /scraper/node_modules
+/scripts_node/*
 .externalNativeBuild
 .cxx
 local.properties

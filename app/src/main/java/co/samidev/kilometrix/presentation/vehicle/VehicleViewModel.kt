@@ -9,6 +9,7 @@ import co.samidev.kilometrix.domain.model.UserProfile
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.domain.repository.ActiveVehicleRepository
 import co.samidev.kilometrix.domain.repository.UserRepository
+import co.samidev.kilometrix.domain.repository.WorkShiftRepository
 import co.samidev.kilometrix.domain.usecase.AddVehicleUseCase
 import co.samidev.kilometrix.domain.usecase.CalculatePicoYPlacaUseCase
 import co.samidev.kilometrix.domain.usecase.GetPicoYPlacaUseCase
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -38,8 +40,17 @@ class VehicleViewModel @Inject constructor(
     private val activeVehicleRepository: ActiveVehicleRepository,
     private val userRepository: UserRepository,
     private val getPicoYPlacaUseCase: GetPicoYPlacaUseCase,
-    private val calculatePicoYPlacaUseCase: CalculatePicoYPlacaUseCase
+    private val calculatePicoYPlacaUseCase: CalculatePicoYPlacaUseCase,
+    private val workShiftRepository: WorkShiftRepository
 ) : ViewModel() {
+
+    val hasActiveShift: StateFlow<Boolean> = workShiftRepository.getAnyActiveShift()
+        .map { it != null }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
     val vehicles: StateFlow<List<Vehicle>> = getVehiclesUseCase()
         .stateIn(

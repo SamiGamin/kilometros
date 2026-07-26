@@ -44,6 +44,8 @@ fun VehicleScreen() {
     val uiState by viewModel.uiState.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val picoPlacaState by viewModel.picoPlacaState.collectAsState()
+    val hasActiveShift by viewModel.hasActiveShift.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var selectedVehicle by remember { mutableStateOf<Vehicle?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -161,8 +163,12 @@ fun VehicleScreen() {
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .clickable {
-                                selectedVehicle = vehicle
-                                viewModel.setActiveVehicle(vehicle.id)
+                                if (hasActiveShift && vehicle.id != activeVehicleId) {
+                                    android.widget.Toast.makeText(context, "Debes finalizar el turno actual antes de cambiar de vehículo.", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    selectedVehicle = vehicle
+                                    viewModel.setActiveVehicle(vehicle.id)
+                                }
                             }
                             .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
@@ -507,6 +513,7 @@ private enum class FuelTypeSelection(val displayName: String) {
     ELECTRIC("Eléctrico")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VehicleFormDialog(
     title: String,
@@ -540,13 +547,25 @@ private fun VehicleFormDialog(
     var tecnomecExpiry by remember { mutableStateOf(vehicle?.tecnomecExpiry.orEmpty()) }
     var seguroExpiry by remember { mutableStateOf(vehicle?.seguroExpiry.orEmpty()) }
 
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = OnSurface, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)) },
-        text = {
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(title, color = OnSurface, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -658,37 +677,40 @@ private fun VehicleFormDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val year = yearStr.toIntOrNull() ?: 2022
-                    val odometer = odometerStr.toIntOrNull() ?: 0
-                    val updated = (vehicle ?: Vehicle()).copy(
-                        type = selectedVehicleType.name,
-                        nickname = nickname.ifEmpty { selectedVehicleType.emoji + " " + brand.ifEmpty { "Mi Vehículo" } },
-                        brand = brand,
-                        model = model,
-                        year = year,
-                        plate = plate.uppercase(),
-                        fuel = selectedFuelType.name,
-                        odometer = odometer,
-                        soatExpiry = soatExpiry,
-                        tecnomecExpiry = tecnomecExpiry,
-                        seguroExpiry = seguroExpiry
-                    )
-                    onSave(updated)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Guardar", color = OnPrimary)
+                TextButton(onClick = onDismiss) {
+                    Text("Cancelar", color = OnSurfaceVariant)
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        val year = yearStr.toIntOrNull() ?: 2022
+                        val odometer = odometerStr.toIntOrNull() ?: 0
+                        val updated = (vehicle ?: Vehicle()).copy(
+                            type = selectedVehicleType.name,
+                            nickname = nickname.ifEmpty { selectedVehicleType.emoji + " " + brand.ifEmpty { "Mi Vehículo" } },
+                            brand = brand,
+                            model = model,
+                            year = year,
+                            plate = plate.uppercase(),
+                            fuel = selectedFuelType.name,
+                            odometer = odometer,
+                            soatExpiry = soatExpiry,
+                            tecnomecExpiry = tecnomecExpiry,
+                            seguroExpiry = seguroExpiry
+                        )
+                        onSave(updated)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                ) {
+                    Text("Guardar", color = OnPrimary)
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = OnSurfaceVariant)
-            }
-        },
-        containerColor = SurfaceContainerLow
-    )
+        }
+    }
 }

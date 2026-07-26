@@ -2,19 +2,34 @@ package co.samidev.kilometrix.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.samidev.kilometrix.core.util.Resource
+import co.samidev.kilometrix.domain.model.PicoPlacaResponse
 import co.samidev.kilometrix.domain.model.PicoPlacaStatus
+import co.samidev.kilometrix.domain.model.ShiftEarning
+import co.samidev.kilometrix.domain.model.ShiftStatus
+import co.samidev.kilometrix.domain.model.UserProfile
 import co.samidev.kilometrix.domain.model.Vehicle
+import co.samidev.kilometrix.domain.model.VehicleExpense
+import co.samidev.kilometrix.domain.model.WorkShift
 import co.samidev.kilometrix.domain.repository.ActiveVehicleRepository
+import co.samidev.kilometrix.domain.repository.ExpenseRepository
 import co.samidev.kilometrix.domain.repository.PicoYPlacaRepository
 import co.samidev.kilometrix.domain.repository.UserRepository
 import co.samidev.kilometrix.domain.repository.VehicleRepository
+import co.samidev.kilometrix.domain.repository.WorkShiftRepository
+import co.samidev.kilometrix.domain.usecase.CalculateFuelEfficiencyUseCase
 import co.samidev.kilometrix.domain.usecase.CalculatePicoYPlacaUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
@@ -23,22 +38,46 @@ data class HomeUiState(
     val userName: String = "",
     val currentDateText: String = "",
     val activeVehicle: Vehicle? = null,
-    val picoPlacaStatus: PicoPlacaStatus = PicoPlacaStatus("Cargando...", "Verificando restricciones", false, false)
+    val picoPlacaStatus: PicoPlacaStatus = PicoPlacaStatus("Cargando...", "Verificando restricciones", false, false),
+    val activeShift: WorkShift? = null,
+    val shiftElapsedMs: Long = 0L,
+    val shiftTotalEarnings: Double = 0.0,
+    val estimatedKmTraveled: Double = 0.0,
+    val estimatedGallonsConsumed: Double = 0.0,
+    val estimatedCostConsumed: Double = 0.0,
+    val actionLoading: Boolean = false,
+    val errorMessage: String? = null
 )
 
+private data class HomeCoreData(
+    val profile: UserProfile?,
+    val vehicle: Vehicle?,
+    val picoResource: Resource<PicoPlacaResponse>,
+    val shift: WorkShift?,
+    val fuelExpenses: List<VehicleExpense>
+)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val vehicleRepository: VehicleRepository,
     private val activeVehicleRepository: ActiveVehicleRepository,
     private val picoYPlacaRepository: PicoYPlacaRepository,
-    private val calculatePicoYPlacaUseCase: CalculatePicoYPlacaUseCase
+    private val calculatePicoYPlacaUseCase: CalculatePicoYPlacaUseCase,
+    private val workShiftRepository: WorkShiftRepository,
+    private val expenseRepository: ExpenseRepository,
+    private val calculateFuelEfficiencyUseCase: CalculateFuelEfficiencyUseCase
 ) : ViewModel() {
 
+    private val actionLoading = MutableStateFlow(false)
+    private val errorMessage = MutableStateFlow<String?>(null)
+
+    // Ticker que emite el timestamp actual cada segundo
     private val timeTicker = kotlinx.coroutines.flow.flow {
         while (true) {
             emit(System.currentTimeMillis())
-            kotlinx.coroutines.delay(5000)
+            kotlinx.coroutines.delay(1000)
         }
     }
 
@@ -50,12 +89,38 @@ class HomeViewModel @Inject constructor(
         else vehicles.firstOrNull()
     }
 
-    val uiState: StateFlow<HomeUiState> = combine(
+    private val activeShift: Flow<WorkShift?> = activeVehicle.flatMapLatest { vehicle ->
+        if (vehicle != null) workShiftRepository.getActiveShift(vehicle.id)
+        else flowOf(null)
+    }
+
+    private val fuelHistory: Flow<List<VehicleExpense>> = activeVehicle.flatMapLatest { vehicle ->
+        if (vehicle != null) expenseRepository.getFuelHistory(vehicle.id)
+        else flowOf(emptyList())
+    }
+
+    private val coreDataFlow: Flow<HomeCoreData> = combine(
         userRepository.getUserProfile(),
         activeVehicle,
         picoYPlacaRepository.getPicoYPlacaData(),
-        timeTicker
-    ) { profile, vehicle, picoResource, _ ->
+        activeShift,
+        fuelHistory
+    ) { profile, vehicle, picoResource, shift, fuelExpenses ->
+        HomeCoreData(profile, vehicle, picoResource, shift, fuelExpenses)
+    }
+
+    val uiState: StateFlow<HomeUiState> = combine(
+        coreDataFlow,
+        timeTicker,
+        actionLoading,
+        errorMessage
+    ) { core, now, isLoading, errorMsg ->
+        val profile = core.profile
+        val vehicle = core.vehicle
+        val picoResource = core.picoResource
+        val shift = core.shift
+        val fuelExpenses = core.fuelExpenses
+
         val userName = profile?.name?.substringBefore(" ") ?: "Conductor"
 
         val calendar = Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Bogota"))
@@ -67,15 +132,129 @@ class HomeViewModel @Inject constructor(
 
         val status = calculatePicoYPlacaUseCase(profile?.city, vehicle, picoResource)
 
+        // ── Cálculos del turno activo ──────────────────────────────────────────
+        var elapsedMs = 0L
+        var shiftEarningsTotal = 0.0
+        var estKm = 0.0
+        var estGallons = 0.0
+        var estCost = 0.0
+
+        if (shift != null) {
+            shiftEarningsTotal = shift.earnings.sumOf { it.amount }
+
+            // Calcular tiempo activo efectivo
+            elapsedMs = when (shift.status) {
+                ShiftStatus.ACTIVE -> {
+                    maxOf(0L, now - shift.startTime - shift.pausedDurationMs)
+                }
+                ShiftStatus.PAUSED -> {
+                    val pauseStart = shift.pauseStartTime ?: now
+                    maxOf(0L, pauseStart - shift.startTime - shift.pausedDurationMs)
+                }
+                ShiftStatus.ENDED -> 0L
+            }
+
+            // Estimación de km basada en velocidad media urbana (30 km/h)
+            val elapsedHours = elapsedMs / (1000.0 * 3600.0)
+            estKm = elapsedHours * 30.0
+
+            // Calcular eficiencia y precio real desde el historial de combustible
+            val summary = calculateFuelEfficiencyUseCase(fuelExpenses)
+            val rProm = summary.kmPerGallonAverage ?: summary.averageKmPerGallon.takeIf { it > 0 } ?: 35.0
+            val lastRefuelPrice = fuelExpenses.firstOrNull()?.fuelDetails?.pricePerGallon
+                ?: (if (summary.totalGallonsPurchased > 0) summary.totalSpentCash / summary.totalGallonsPurchased else 15529.0)
+
+            if (rProm > 0) {
+                estGallons = estKm / rProm
+                estCost = estGallons * lastRefuelPrice
+            }
+        }
+
         HomeUiState(
             userName = userName,
             currentDateText = dateText,
             activeVehicle = vehicle,
-            picoPlacaStatus = status
+            picoPlacaStatus = status,
+            activeShift = shift,
+            shiftElapsedMs = elapsedMs,
+            shiftTotalEarnings = shiftEarningsTotal,
+            estimatedKmTraveled = estKm,
+            estimatedGallonsConsumed = estGallons,
+            estimatedCostConsumed = estCost,
+            actionLoading = isLoading,
+            errorMessage = errorMsg
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = HomeUiState()
     )
+
+    // ── Funciones de interacción del turno ────────────────────────────────────
+
+    fun startShift(initialOdometer: Int) {
+        val vehicle = uiState.value.activeVehicle ?: return
+        viewModelScope.launch {
+            actionLoading.value = true
+            errorMessage.value = null
+            val result = workShiftRepository.startShift(vehicle.id, initialOdometer)
+            actionLoading.value = false
+            if (result.isFailure) {
+                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al iniciar turno"
+            }
+        }
+    }
+
+    fun togglePauseResumeShift() {
+        val shift = uiState.value.activeShift ?: return
+        viewModelScope.launch {
+            actionLoading.value = true
+            errorMessage.value = null
+            val result = if (shift.status == ShiftStatus.ACTIVE) {
+                workShiftRepository.pauseShift(shift.id)
+            } else {
+                workShiftRepository.resumeShift(shift.id)
+            }
+            actionLoading.value = false
+            if (result.isFailure) {
+                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al cambiar estado del turno"
+            }
+        }
+    }
+
+    fun addEarning(appName: String, appEmoji: String, amount: Double) {
+        val shift = uiState.value.activeShift ?: return
+        if (amount <= 0.0) return
+        viewModelScope.launch {
+            actionLoading.value = true
+            errorMessage.value = null
+            val earning = ShiftEarning(
+                appName = appName,
+                appEmoji = appEmoji,
+                amount = amount
+            )
+            val result = workShiftRepository.addEarning(shift.id, earning)
+            actionLoading.value = false
+            if (result.isFailure) {
+                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al guardar ganancia"
+            }
+        }
+    }
+
+    fun endShift(finalOdometer: Int) {
+        val shift = uiState.value.activeShift ?: return
+        viewModelScope.launch {
+            actionLoading.value = true
+            errorMessage.value = null
+            val result = workShiftRepository.endShift(shift.id, finalOdometer)
+            actionLoading.value = false
+            if (result.isFailure) {
+                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al finalizar turno"
+            }
+        }
+    }
+
+    fun clearError() {
+        errorMessage.value = null
+    }
 }

@@ -45,6 +45,12 @@ abstract class RepositoryModule {
         expenseRepositoryImpl: ExpenseRepositoryImpl
     ): ExpenseRepository
 
+    @Binds
+    @Singleton
+    abstract fun bindWorkShiftRepository(
+        workShiftRepositoryImpl: co.samidev.kilometrix.data.repository.WorkShiftRepositoryImpl
+    ): co.samidev.kilometrix.domain.repository.WorkShiftRepository
+
     companion object {
         @Provides
         @Singleton
