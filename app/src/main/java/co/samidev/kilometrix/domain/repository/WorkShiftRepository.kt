@@ -39,4 +39,10 @@ interface WorkShiftRepository {
     
     /** Registra una ganancia aislada creando un mini-turno de 0 duración. */
     suspend fun addStandaloneEarning(vehicleId: String, earning: ShiftEarning): Result<Unit>
+
+    /** Elimina un turno de Firestore por su ID. */
+    suspend fun deleteShift(shiftId: String): Result<Unit>
+
+    /** Elimina una ganancia específica de un turno (o el mini-turno entero si es aislada). */
+    suspend fun deleteEarning(shiftId: String, earningId: String): Result<Unit>
 }

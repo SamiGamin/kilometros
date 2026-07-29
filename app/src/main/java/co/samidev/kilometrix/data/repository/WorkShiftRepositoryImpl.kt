@@ -237,6 +237,40 @@ class WorkShiftRepositoryImpl @Inject constructor(
             Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }
+
+    override suspend fun deleteShift(shiftId: String): Result<Unit> {
+        val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
+        return try {
+            shiftsCol(userId).document(shiftId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    override suspend fun deleteEarning(shiftId: String, earningId: String): Result<Unit> {
+        val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
+        return try {
+            val docSnap = shiftsCol(userId).document(shiftId).get().await()
+            val shift = docSnap.toWorkShift()
+            if (shift != null) {
+                val updatedEarnings = shift.earnings.filter { it.id != earningId }
+                if (updatedEarnings.isEmpty() && shift.initialOdometer == 0 && shift.finalOdometer == 0) {
+                    shiftsCol(userId).document(shiftId).delete().await()
+                } else {
+                    val updatedListMap = updatedEarnings.map { e ->
+                        mapOf(
+                            "id" to e.id,
+                            "appName" to e.appName,
+                            "appEmoji" to e.appEmoji,
+                            "amount" to e.amount,
+                            "registeredAt" to e.registeredAt
+                        )
+                    }
+                    shiftsCol(userId).document(shiftId).update("earnings", updatedListMap).await()
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
 }
 
 // ── Firestore ↔ Domain mappers ────────────────────────────────────────────────

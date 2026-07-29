@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +48,25 @@ private val monthFmt = SimpleDateFormat("MMMM yyyy", Locale("es", "CO"))
 private val dayFmt = SimpleDateFormat("d MMM yyyy", Locale("es", "CO"))
 private val timeFmt = SimpleDateFormat("h:mm a", Locale("es", "CO"))
 
+private fun formatDuration(durationMs: Long): String {
+    val totalMinutes = durationMs / (1000 * 60)
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours > 0 && minutes > 0 -> "${hours}h ${minutes}m"
+        hours > 0 -> "${hours}h"
+        minutes > 0 -> "${minutes}m"
+        else -> "< 1m"
+    }
+}
+
+private sealed interface DeleteTarget {
+    val description: String
+    data class Shift(val id: String, override val description: String) : DeleteTarget
+    data class Expense(val id: String, override val description: String) : DeleteTarget
+    data class Earning(val shiftId: String, val earningId: String, override val description: String) : DeleteTarget
+}
+
 private fun expenseColor(type: ExpenseType): Color = when (type) {
     ExpenseType.FUEL -> Color(0xFF4EDEA3)        // Verde
     ExpenseType.MAINTENANCE -> Color(0xFFFFB95F) // Ámbar
@@ -77,7 +98,7 @@ fun TransactionsScreen(
     val hasActiveShift by viewModel.hasActiveShift.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    var selectedTabIndex by remember { mutableStateOf(0) }
+    val selectedTabIndex by viewModel.selectedTabIndex.collectAsState()
     var periodFilter by remember { mutableStateOf(DatePeriodFilter.CURRENT_MONTH) }
     var selectedCustomMonth by remember { mutableStateOf<MonthYear?>(null) }
     var showMonthPickerDialog by remember { mutableStateOf(false) }
@@ -209,17 +230,17 @@ fun TransactionsScreen(
         ) {
             Tab(
                 selected = selectedTabIndex == 0,
-                onClick = { selectedTabIndex = 0 },
+                onClick = { viewModel.setSelectedTab(0) },
                 text = { Text("🚩 Recorridos (${filteredShifts.size})", fontWeight = if (selectedTabIndex == 0) FontWeight.Bold else FontWeight.Normal) }
             )
             Tab(
                 selected = selectedTabIndex == 1,
-                onClick = { selectedTabIndex = 1 },
+                onClick = { viewModel.setSelectedTab(1) },
                 text = { Text("💸 Gastos (${filteredExpenses.size})", fontWeight = if (selectedTabIndex == 1) FontWeight.Bold else FontWeight.Normal) }
             )
             Tab(
                 selected = selectedTabIndex == 2,
-                onClick = { selectedTabIndex = 2 },
+                onClick = { viewModel.setSelectedTab(2) },
                 text = {
                     val count = filteredShifts.flatMap { it.earnings }.size
                     Text("💰 Ganancias ($count)", fontWeight = if (selectedTabIndex == 2) FontWeight.Bold else FontWeight.Normal)
@@ -290,9 +311,51 @@ fun TransactionsScreen(
             )
         }
 
+        var itemToDelete by remember { mutableStateOf<DeleteTarget?>(null) }
+
+        if (itemToDelete != null) {
+            val target = itemToDelete!!
+            AlertDialog(
+                onDismissRequest = { itemToDelete = null },
+                title = { Text("¿Eliminar registro?", fontWeight = FontWeight.Bold, color = OnSurface) },
+                text = {
+                    Text(
+                        "¿Estás seguro de que deseas eliminar ${target.description}? Esta acción no se puede deshacer.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OnSurfaceVariant
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            when (target) {
+                                is DeleteTarget.Shift -> viewModel.deleteShift(target.id)
+                                is DeleteTarget.Expense -> viewModel.deleteExpense(target.id)
+                                is DeleteTarget.Earning -> viewModel.deleteEarning(target.shiftId, target.earningId)
+                            }
+                            itemToDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Eliminar", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { itemToDelete = null }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
+        }
+
         // ── Tab Content ────────────────────────────────────────────────────────
         when (selectedTabIndex) {
-            0 -> RecorridosTab(shifts = filteredShifts, expenses = expenses)
+            0 -> RecorridosTab(
+                shifts = filteredShifts,
+                expenses = expenses,
+                fuelSummary = fuelSummary,
+                onDeleteShift = { id, desc -> itemToDelete = DeleteTarget.Shift(id, desc) }
+            )
             1 -> {
                 // latestFuelId: último tanqueo real (toda la historia) → ciclo abierto
                 val latestFuelId = remember(fuelHistory) {
@@ -301,10 +364,14 @@ fun TransactionsScreen(
                 GastosTab(
                     expenses = filteredExpenses,
                     fuelSummary = fuelSummary,
-                    latestFuelId = latestFuelId
+                    latestFuelId = latestFuelId,
+                    onDeleteExpense = { id, desc -> itemToDelete = DeleteTarget.Expense(id, desc) }
                 )
             }
-            2 -> GananciasTab(shifts = filteredShifts)
+            2 -> GananciasTab(
+                shifts = filteredShifts,
+                onDeleteEarning = { shiftId, earningId, desc -> itemToDelete = DeleteTarget.Earning(shiftId, earningId, desc) }
+            )
         }
     }
 }
@@ -314,7 +381,9 @@ fun TransactionsScreen(
 @Composable
 private fun RecorridosTab(
     shifts: List<WorkShift>,
-    expenses: List<VehicleExpense>
+    expenses: List<VehicleExpense>,
+    fuelSummary: FuelEfficiencySummary?,
+    onDeleteShift: (String, String) -> Unit
 ) {
     if (shifts.isEmpty()) {
         EmptyState(
@@ -330,8 +399,20 @@ private fun RecorridosTab(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item {
+                RecorridosSummaryCard(
+                    shifts = shifts,
+                    allExpenses = expenses,
+                    fuelSummary = fuelSummary
+                )
+            }
             items(shifts, key = { it.id }) { shift ->
-                ShiftCard(shift = shift, allExpenses = expenses)
+                ShiftCard(
+                    shift = shift,
+                    allExpenses = expenses,
+                    fuelSummary = fuelSummary,
+                    onDeleteShift = onDeleteShift
+                )
             }
             item { Spacer(Modifier.height(80.dp)) }
         }
@@ -339,9 +420,151 @@ private fun RecorridosTab(
 }
 
 @Composable
+private fun RecorridosSummaryCard(
+    shifts: List<WorkShift>,
+    allExpenses: List<VehicleExpense>,
+    fuelSummary: FuelEfficiencySummary?
+) {
+    val summaryData = remember(shifts, allExpenses, fuelSummary) {
+        var totalMs = 0L
+        var totalKm = 0
+        var totalNetProfit = 0.0
+
+        shifts.forEach { shift ->
+            val isWork = shift.type == ShiftType.WORK
+            val endTimeLimit = shift.endTime ?: System.currentTimeMillis()
+            val realKm = if (shift.finalOdometer != null && shift.finalOdometer > shift.initialOdometer) {
+                shift.finalOdometer - shift.initialOdometer
+            } else 0
+
+            val effectiveMs = maxOf(0L, endTimeLimit - shift.startTime - shift.pausedDurationMs)
+            totalMs += effectiveMs
+            totalKm += realKm
+
+            val nonFuelExpenses = allExpenses.filter { it.date in shift.startTime..endTimeLimit && it.type != ExpenseType.FUEL }
+                .sumOf { it.amount }
+
+            val kpg = fuelSummary?.kmPerGallonAverage
+                ?: fuelSummary?.averageKmPerGallon.takeIf { it != null && it > 0.0 }
+                ?: 35.0
+
+            val pricePerGal = if (fuelSummary != null && fuelSummary.totalGallonsPurchased > 0.0) {
+                fuelSummary.totalSpentCash / fuelSummary.totalGallonsPurchased
+            } else {
+                allExpenses.firstOrNull { it.type == ExpenseType.FUEL }?.fuelDetails?.pricePerGallon ?: 15800.0
+            }
+
+            val costPerKm = fuelSummary?.costPerKmReal.takeIf { it != null && it > 0.0 }
+                ?: (if (kpg > 0.0) pricePerGal / kpg else 0.0)
+
+            val fuelBurnedExpense = if (costPerKm > 0.0 && realKm > 0) realKm * costPerKm else 0.0
+            val shiftExp = if (realKm > 0 && fuelBurnedExpense > 0.0) {
+                nonFuelExpenses + fuelBurnedExpense
+            } else {
+                allExpenses.filter { it.date in shift.startTime..endTimeLimit }.sumOf { it.amount }
+            }
+
+            val shiftEarnings = shift.earnings.sumOf { it.amount }
+            if (isWork) {
+                totalNetProfit += (shiftEarnings - shiftExp)
+            }
+        }
+
+        val totalHours = totalMs / (1000.0 * 3600.0)
+        val avgHourlyRate = if (totalHours > 0.05) totalNetProfit / totalHours else 0.0
+        val avgKmRate = if (totalKm > 0) totalNetProfit / totalKm.toDouble() else 0.0
+
+        Triple(Pair(totalMs, totalKm), Pair(totalNetProfit, avgHourlyRate), avgKmRate)
+    }
+
+    val totalMs = summaryData.first.first
+    val totalKm = summaryData.first.second
+    val totalNetProfit = summaryData.second.first
+    val avgHourlyRate = summaryData.second.second
+    val avgKmRate = summaryData.third
+    val durationText = formatDuration(totalMs)
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = SurfaceContainerLow,
+        border = BorderStroke(1.dp, CardBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "📊 RESUMEN GLOBAL DE RECORRIDOS",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Primary
+                )
+                Text(
+                    "${shifts.size} turnos",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = OnSurfaceVariant
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("⏱️ Horas trabajadas", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text(durationText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = OnSurface)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🛣️ Total km", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text("${currencyFmt.format(totalKm)} km", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Primary)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("💰 Total Neto", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text("$ ${currencyFmt.format(totalNetProfit.toLong())}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = Secondary)
+                }
+            }
+
+            HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("⚡ Promedio / Hora:", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text(
+                        if (avgHourlyRate > 0) "$ ${currencyFmt.format(avgHourlyRate.toLong())}/h" else "—",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Secondary
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("📍 Promedio / Km:", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text(
+                        if (avgKmRate > 0) "$ ${currencyFmt.format(avgKmRate.toLong())}/km" else "—",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ShiftCard(
     shift: WorkShift,
-    allExpenses: List<VehicleExpense>
+    allExpenses: List<VehicleExpense>,
+    fuelSummary: FuelEfficiencySummary?,
+    onDeleteShift: (String, String) -> Unit
 ) {
     val isWork = shift.type == ShiftType.WORK
     val isLive = shift.status != ShiftStatus.ENDED
@@ -349,12 +572,51 @@ private fun ShiftCard(
         shift.finalOdometer - shift.initialOdometer
     } else 0
 
-    val shiftExpenses = remember(shift, allExpenses) {
+    val effectiveMs = remember(shift) {
         val endTimeLimit = shift.endTime ?: System.currentTimeMillis()
-        allExpenses.filter { it.date in shift.startTime..endTimeLimit }.sumOf { it.amount }
+        maxOf(0L, endTimeLimit - shift.startTime - shift.pausedDurationMs)
     }
+    val effectiveHours = effectiveMs / (1000.0 * 3600.0)
+    val durationText = remember(effectiveMs) { formatDuration(effectiveMs) }
+
+    val shiftExpensesResult = remember(shift, allExpenses, fuelSummary) {
+        val endTimeLimit = shift.endTime ?: System.currentTimeMillis()
+        val nonFuelExpenses = allExpenses.filter { it.date in shift.startTime..endTimeLimit && it.type != ExpenseType.FUEL }
+            .sumOf { it.amount }
+
+        val kpg = fuelSummary?.kmPerGallonAverage
+            ?: fuelSummary?.averageKmPerGallon.takeIf { it != null && it > 0.0 }
+            ?: 35.0
+
+        val pricePerGal = if (fuelSummary != null && fuelSummary.totalGallonsPurchased > 0.0) {
+            fuelSummary.totalSpentCash / fuelSummary.totalGallonsPurchased
+        } else {
+            allExpenses.firstOrNull { it.type == ExpenseType.FUEL }?.fuelDetails?.pricePerGallon ?: 15800.0
+        }
+
+        val costPerKm = fuelSummary?.costPerKmReal.takeIf { it != null && it > 0.0 }
+            ?: (if (kpg > 0.0) pricePerGal / kpg else 0.0)
+
+        val gallonsBurned = if (kpg > 0.0 && realKm > 0) realKm.toDouble() / kpg else 0.0
+        val fuelBurnedExpense = if (costPerKm > 0.0 && realKm > 0) realKm * costPerKm else 0.0
+
+        if (realKm > 0 && fuelBurnedExpense > 0.0) {
+            Triple(nonFuelExpenses + fuelBurnedExpense, gallonsBurned, true)
+        } else {
+            val rawExpenses = allExpenses.filter { it.date in shift.startTime..endTimeLimit }.sumOf { it.amount }
+            Triple(rawExpenses, 0.0, false)
+        }
+    }
+
+    val shiftExpenses = shiftExpensesResult.first
+    val gallonsBurnedInShift = shiftExpensesResult.second
+    val isOperationalCostUsed = shiftExpensesResult.third
+
     val totalEarnings = shift.earnings.sumOf { it.amount }
     val netProfit = totalEarnings - shiftExpenses
+
+    val hourlyRate = if (effectiveHours > 0.05 && netProfit > 0) netProfit / effectiveHours else 0.0
+    val perKmRate = if (realKm > 0 && netProfit > 0) netProfit / realKm.toDouble() else 0.0
 
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -399,21 +661,43 @@ private fun ShiftCard(
                     )
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isLive) Color(0xFF4CAF50).copy(alpha = 0.2f) else SurfaceContainerHigh
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = if (isLive) "● LIVE" else "Finalizado",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isLive) Color(0xFF4CAF50) else OnSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isLive) Color(0xFF4CAF50).copy(alpha = 0.2f) else SurfaceContainerHigh
+                    ) {
+                        Text(
+                            text = if (isLive) "● LIVE" else "Finalizado",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isLive) Color(0xFF4CAF50) else OnSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            onDeleteShift(
+                                shift.id,
+                                "el recorrido del ${dayFmt.format(Date(shift.startTime))} (${if (realKm > 0) "$realKm km" else "en curso"})"
+                            )
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Eliminar recorrido",
+                            tint = OnSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
 
-            // Time & Odometer Grid
+            // Time, Duration & Distance Grid
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -429,8 +713,18 @@ private fun ShiftCard(
                     Text("$startStr - $endStr", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = OnSurface)
                 }
 
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Duración", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text(
+                        text = durationText,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = OnSurface
+                    )
+                }
+
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Distancia Recorrida", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text("Distancia", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Text(
                         text = if (realKm > 0) "$realKm km" else "En trayecto",
                         style = MaterialTheme.typography.bodySmall,
@@ -440,7 +734,7 @@ private fun ShiftCard(
                 }
             }
 
-            // Financial Summary
+            // Financial Summary & Rates
             if (isWork) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -451,6 +745,13 @@ private fun ShiftCard(
                         Text("Ingresos: $ ${currencyFmt.format(totalEarnings.toLong())}", style = MaterialTheme.typography.labelSmall, color = Secondary)
                         if (shiftExpenses > 0) {
                             Text("Gastos: - $ ${currencyFmt.format(shiftExpenses.toLong())}", style = MaterialTheme.typography.labelSmall, color = Error)
+                            if (isOperationalCostUsed && gallonsBurnedInShift > 0.0) {
+                                Text(
+                                    "🔥 ${"%.1f".format(gallonsBurnedInShift)} gal quemados",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = OnSurfaceVariant
+                                )
+                            }
                         }
                     }
 
@@ -462,6 +763,29 @@ private fun ShiftCard(
                             fontWeight = FontWeight.ExtraBold,
                             color = if (netProfit >= 0) Secondary else Error
                         )
+                    }
+                }
+
+                // Rates pills (Ganancia/hora & Ganancia/km)
+                if (hourlyRate > 0 || perKmRate > 0) {
+                    HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (hourlyRate > 0) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("⚡ Ganancia / Hora:", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                Text("$ ${currencyFmt.format(hourlyRate.toLong())}/h", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Secondary)
+                            }
+                        }
+                        if (perKmRate > 0) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("📍 Ganancia / Km:", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                Text("$ ${currencyFmt.format(perKmRate.toLong())}/km", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Primary)
+                            }
+                        }
                     }
                 }
             } else if (shiftExpenses > 0) {
@@ -519,7 +843,8 @@ private fun ShiftCard(
 private fun GastosTab(
     expenses: List<VehicleExpense>,
     fuelSummary: FuelEfficiencySummary?,
-    latestFuelId: String?
+    latestFuelId: String?,
+    onDeleteExpense: (String, String) -> Unit
 ) {
     if (expenses.isEmpty() && fuelSummary == null) {
         EmptyState(
@@ -551,7 +876,8 @@ private fun GastosTab(
                 items(monthExpenses, key = { it.id }) { expense ->
                     ExpenseCard(
                         expense = expense,
-                        isLatestFuel = expense.type == ExpenseType.FUEL && expense.id == latestFuelId
+                        isLatestFuel = expense.type == ExpenseType.FUEL && expense.id == latestFuelId,
+                        onDeleteExpense = onDeleteExpense
                     )
                 }
             }
@@ -564,18 +890,29 @@ private fun GastosTab(
 
 @Composable
 private fun GananciasTab(
-    shifts: List<WorkShift>
+    shifts: List<WorkShift>,
+    onDeleteEarning: (String, String, String) -> Unit
 ) {
     val allEarnings = remember(shifts) {
-        shifts.flatMap { shift -> shift.earnings }
+        shifts.flatMap { it.earnings }
             .sortedByDescending { it.registeredAt }
+    }
+
+    val earningToShiftMap = remember(shifts) {
+        buildMap {
+            shifts.forEach { shift ->
+                shift.earnings.forEach { earning ->
+                    put(earning.id, shift)
+                }
+            }
+        }
     }
 
     if (allEarnings.isEmpty()) {
         EmptyState(
             icon = "💰",
             title = "Sin ganancias registradas",
-            subtitle = "Registra tus ingresos de Uber, Yango, Didi o retos dominicales usando el botón +."
+            subtitle = "Registra ganancias en tus turnos o desde el botón + para ver tu historial."
         )
     } else {
         val grouped = remember(allEarnings) {
@@ -598,7 +935,19 @@ private fun GananciasTab(
                     )
                 }
                 items(monthEarnings, key = { it.id }) { earning ->
-                    EarningCard(earning = earning)
+                    val shift = earningToShiftMap[earning.id]
+                    EarningCard(
+                        earning = earning,
+                        onDelete = {
+                            if (shift != null) {
+                                onDeleteEarning(
+                                    shift.id,
+                                    earning.id,
+                                    "la ganancia de ${earning.appName} ($ ${currencyFmt.format(earning.amount.toLong())})"
+                                )
+                            }
+                        }
+                    )
                 }
             }
             item { Spacer(Modifier.height(80.dp)) }
@@ -607,7 +956,10 @@ private fun GananciasTab(
 }
 
 @Composable
-private fun EarningCard(earning: ShiftEarning) {
+private fun EarningCard(
+    earning: ShiftEarning,
+    onDelete: () -> Unit
+) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = SurfaceContainerLow,
@@ -621,7 +973,8 @@ private fun EarningCard(earning: ShiftEarning) {
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.weight(1f)
             ) {
                 Box(
                     modifier = Modifier
@@ -633,7 +986,7 @@ private fun EarningCard(earning: ShiftEarning) {
                     Text(earning.appEmoji, fontSize = 22.sp)
                 }
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         earning.appName,
                         style = MaterialTheme.typography.bodyLarge,
@@ -648,12 +1001,29 @@ private fun EarningCard(earning: ShiftEarning) {
                 }
             }
 
-            Text(
-                "+ $ ${currencyFmt.format(earning.amount.toLong())}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = Secondary
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "+ $ ${currencyFmt.format(earning.amount.toLong())}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Secondary
+                )
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Eliminar ganancia",
+                        tint = OnSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -746,7 +1116,8 @@ private fun MonthHeader(month: String, total: Double, isEarnings: Boolean = fals
 @Composable
 private fun ExpenseCard(
     expense: VehicleExpense,
-    isLatestFuel: Boolean = false
+    isLatestFuel: Boolean = false,
+    onDeleteExpense: (String, String) -> Unit
 ) {
     val color = expenseColor(expense.type)
     Surface(
@@ -755,83 +1126,111 @@ private fun ExpenseCard(
         border = BorderStroke(1.dp, CardBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Header Row: Emoji + Title + Amount + Delete Icon (esquina superior derecha)
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(color.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(expense.type.emoji, fontSize = 20.sp)
-                }
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(color.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(expense.type.emoji, fontSize = 18.sp)
+                    }
 
-                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         expense.type.label,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                         color = OnSurface
                     )
-                    val fd = expense.fuelDetails
-                    if (expense.type == ExpenseType.FUEL && fd != null) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(top = 2.dp)
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (fd.gallons > 0.0) {
-                                    FuelChip("${"%.2f".format(fd.gallons)} gal", color)
-                                }
-                                if (fd.pricePerGallon > 0.0) {
-                                    FuelChip("$ ${currencyFmt.format(fd.pricePerGallon.toLong())}/gal", color.copy(alpha = 0.7f))
-                                }
-                                when {
-                                    isLatestFuel ->
-                                        FuelChip("⏳ Ciclo abierto", OnSurfaceVariant.copy(alpha = 0.6f))
-                                    fd.kmPerGallon > 0.0 ->
-                                        FuelChip("${"%.1f".format(fd.kmPerGallon)} km/gal", Secondary)
-                                }
-                            }
+                }
 
-                            val kmStr = if (!isLatestFuel && fd.kmTraveled > 0) "🛣 ${currencyFmt.format(fd.kmTraveled)} km" else ""
-                            val odStr = if (fd.odometerAtRefuel > 0) "Odóm: ${currencyFmt.format(fd.odometerAtRefuel)} km" else ""
-                            val tankTypeStr = when {
-                                fd.isFullTank -> "⛽ Tanque lleno"
-                                fd.isReserve -> "⚠️ Reserva"
-                                fd.isPartial -> "💧 Parcial"
-                                else -> ""
-                            }
-                            val subInfo = listOf(kmStr, odStr, tankTypeStr).filter { it.isNotBlank() }.joinToString(" · ")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "- $ ${currencyFmt.format(expense.amount.toLong())}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = color
+                    )
 
-                            if (subInfo.isNotBlank()) {
-                                Text(
-                                    text = subInfo,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = OnSurfaceVariant,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
-                    } else if (expense.notes.isNotBlank()) {
+                    IconButton(
+                        onClick = {
+                            onDeleteExpense(
+                                expense.id,
+                                "el gasto de ${expense.type.label} por $ ${currencyFmt.format(expense.amount.toLong())}"
+                            )
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Eliminar gasto",
+                            tint = OnSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+
+            // Body Row: Fuel details / Notes + Chips + Odometer + Date
+            val fd = expense.fuelDetails
+            if (expense.type == ExpenseType.FUEL && fd != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (fd.gallons > 0.0) {
+                        FuelChip("${"%.2f".format(fd.gallons)} gal", color)
+                    }
+                    if (fd.pricePerGallon > 0.0) {
+                        FuelChip("$ ${currencyFmt.format(fd.pricePerGallon.toLong())}/gal", color.copy(alpha = 0.7f))
+                    }
+                    when {
+                        isLatestFuel ->
+                            FuelChip("⏳ Ciclo abierto", OnSurfaceVariant.copy(alpha = 0.6f))
+                        fd.kmPerGallon > 0.0 ->
+                            FuelChip("${"%.1f".format(fd.kmPerGallon)} km/gal", Secondary)
+                    }
+                }
+
+                val kmStr = if (!isLatestFuel && fd.kmTraveled > 0) "🛣 ${currencyFmt.format(fd.kmTraveled)} km" else ""
+                val odStr = if (fd.odometerAtRefuel > 0) "Odóm: ${currencyFmt.format(fd.odometerAtRefuel)} km" else ""
+                val tankTypeStr = when {
+                    fd.isFullTank -> "⛽ Tanque Lleno"
+                    fd.isReserve -> "⚠️ Reserva"
+                    fd.isPartial -> "💧 Parcial"
+                    else -> ""
+                }
+                val subInfo = listOf(kmStr, odStr, tankTypeStr).filter { it.isNotBlank() }.joinToString(" · ")
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (subInfo.isNotBlank()) {
                         Text(
-                            expense.notes,
-                            style = MaterialTheme.typography.bodySmall,
+                            text = subInfo,
+                            style = MaterialTheme.typography.labelSmall,
                             color = OnSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            fontWeight = FontWeight.Medium
                         )
                     }
                     Text(
@@ -840,14 +1239,31 @@ private fun ExpenseCard(
                         color = OnSurfaceVariant
                     )
                 }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (expense.notes.isNotBlank()) {
+                        Text(
+                            expense.notes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OnSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    Text(
+                        "${dayFmt.format(Date(expense.date))} · ${timeFmt.format(Date(expense.date))}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant
+                    )
+                }
             }
-
-            Text(
-                "- $ ${currencyFmt.format(expense.amount.toLong())}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = color
-            )
         }
     }
 }

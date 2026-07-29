@@ -51,6 +51,13 @@ class TransactionsViewModel @Inject constructor(
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    private val _selectedTabIndex = MutableStateFlow(0)
+    val selectedTabIndex: StateFlow<Int> = _selectedTabIndex.asStateFlow()
+
+    fun setSelectedTab(index: Int) {
+        _selectedTabIndex.value = index
+    }
+
     // ── Vehicles & selection ──────────────────────────────────────────────────—
 
     val vehicles: StateFlow<List<Vehicle>> = getVehiclesUseCase()
@@ -113,6 +120,24 @@ class TransactionsViewModel @Inject constructor(
             expenseRepository.deleteExpense(expenseId)
                 .onSuccess { _actionState.value = ActionState.Success }
                 .onFailure { e -> _actionState.value = ActionState.Error(e.message ?: "Error al eliminar el gasto") }
+        }
+    }
+
+    fun deleteShift(shiftId: String) {
+        viewModelScope.launch {
+            _actionState.value = ActionState.Loading
+            workShiftRepository.deleteShift(shiftId)
+                .onSuccess { _actionState.value = ActionState.Success }
+                .onFailure { e -> _actionState.value = ActionState.Error(e.message ?: "Error al eliminar el recorrido") }
+        }
+    }
+
+    fun deleteEarning(shiftId: String, earningId: String) {
+        viewModelScope.launch {
+            _actionState.value = ActionState.Loading
+            workShiftRepository.deleteEarning(shiftId, earningId)
+                .onSuccess { _actionState.value = ActionState.Success }
+                .onFailure { e -> _actionState.value = ActionState.Error(e.message ?: "Error al eliminar la ganancia") }
         }
     }
 

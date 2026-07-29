@@ -3,8 +3,10 @@ package co.samidev.kilometrix.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.samidev.kilometrix.core.util.Resource
+import co.samidev.kilometrix.domain.model.ExpenseType
 import co.samidev.kilometrix.domain.model.PicoPlacaResponse
 import co.samidev.kilometrix.domain.model.PicoPlacaStatus
+import co.samidev.kilometrix.domain.model.FuelEfficiencySummary
 import co.samidev.kilometrix.domain.model.ShiftEarning
 import co.samidev.kilometrix.domain.model.ShiftStatus
 import co.samidev.kilometrix.domain.model.UserProfile
@@ -48,6 +50,7 @@ data class HomeUiState(
     val estimatedKmTraveled: Double = 0.0,
     val estimatedGallonsConsumed: Double = 0.0,
     val estimatedCostConsumed: Double = 0.0,
+    val fuelEfficiencySummary: FuelEfficiencySummary? = null,
     val actionLoading: Boolean = false,
     val errorMessage: String? = null
 )
@@ -149,10 +152,15 @@ class HomeViewModel @Inject constructor(
         var estGallons = 0.0
         var estCost = 0.0
 
+        val globalFuelSummary = calculateFuelEfficiencyUseCase(fuelExpenses)
+        val rProm = globalFuelSummary.kmPerGallonAverage ?: globalFuelSummary.averageKmPerGallon.takeIf { it > 0 } ?: 35.0
+        val lastRefuelPrice = fuelExpenses.firstOrNull()?.fuelDetails?.pricePerGallon
+            ?: (if (globalFuelSummary.totalGallonsPurchased > 0) globalFuelSummary.totalSpentCash / globalFuelSummary.totalGallonsPurchased else 15529.0)
+
         if (shift != null) {
             shiftEarningsTotal = shift.earnings.sumOf { it.amount }
-            shiftExpensesTotal = core.allExpenses
-                .filter { it.date >= shift.startTime }
+            val nonFuelExpenses = core.allExpenses
+                .filter { it.date >= shift.startTime && it.type != ExpenseType.FUEL }
                 .sumOf { it.amount }
 
             // Calcular tiempo activo efectivo
@@ -171,16 +179,12 @@ class HomeViewModel @Inject constructor(
             val elapsedHours = elapsedMs / (1000.0 * 3600.0)
             estKm = elapsedHours * 30.0
 
-            // Calcular eficiencia y precio real desde el historial de combustible
-            val summary = calculateFuelEfficiencyUseCase(fuelExpenses)
-            val rProm = summary.kmPerGallonAverage ?: summary.averageKmPerGallon.takeIf { it > 0 } ?: 35.0
-            val lastRefuelPrice = fuelExpenses.firstOrNull()?.fuelDetails?.pricePerGallon
-                ?: (if (summary.totalGallonsPurchased > 0) summary.totalSpentCash / summary.totalGallonsPurchased else 15529.0)
-
             if (rProm > 0) {
                 estGallons = estKm / rProm
                 estCost = estGallons * lastRefuelPrice
             }
+
+            shiftExpensesTotal = nonFuelExpenses + estCost
         }
 
         HomeUiState(
@@ -196,6 +200,7 @@ class HomeViewModel @Inject constructor(
             estimatedKmTraveled = estKm,
             estimatedGallonsConsumed = estGallons,
             estimatedCostConsumed = estCost,
+            fuelEfficiencySummary = globalFuelSummary.takeIf { globalFuelSummary.fillUpsCount > 0 || globalFuelSummary.totalGallonsPurchased > 0 },
             actionLoading = isLoading,
             errorMessage = errorMsg
         )

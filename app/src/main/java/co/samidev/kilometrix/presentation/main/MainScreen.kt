@@ -132,7 +132,13 @@ fun MainScreen(
                 .padding(bottom = 72.dp)
         ) { tab ->
             when (tab) {
-                Tab.HOME -> HomeScreen(onNavigateToPicoPlaca = onNavigateToPicoPlaca)
+                Tab.HOME -> HomeScreen(
+                    onNavigateToPicoPlaca = onNavigateToPicoPlaca,
+                    onNavigateToGastos = {
+                        selectedTab = Tab.TRANSACTIONS
+                        transactionsViewModel.setSelectedTab(1)
+                    }
+                )
                 Tab.TRANSACTIONS -> TransactionsScreen(viewModel = transactionsViewModel)
                 Tab.VEHICLE -> VehicleScreen()
                 Tab.ANALYTICS -> AnalyticsScreen()

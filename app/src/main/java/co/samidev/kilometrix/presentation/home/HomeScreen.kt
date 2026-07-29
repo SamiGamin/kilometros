@@ -2,6 +2,7 @@ package co.samidev.kilometrix.presentation.home
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import co.samidev.kilometrix.R
+import co.samidev.kilometrix.domain.model.FuelEfficiencySummary
 import co.samidev.kilometrix.domain.model.ShiftStatus
 import co.samidev.kilometrix.domain.model.ShiftType
 import co.samidev.kilometrix.domain.model.TRANSPORT_APPS
@@ -90,6 +92,7 @@ private fun staggeredEntrance(index: Int): Pair<Float, Float> {
 @Composable
 fun HomeScreen(
     onNavigateToPicoPlaca: () -> Unit,
+    onNavigateToGastos: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -704,6 +707,22 @@ fun HomeScreen(
             )
         }
 
+        // ── Rendimiento de Combustible card ────────────────────────────────
+        if (uiState.fuelEfficiencySummary != null) {
+            val (cEffAlpha, cEffTy) = staggeredEntrance(4)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(cEffAlpha)
+                    .offset(y = cEffTy.dp)
+            ) {
+                HomeFuelEfficiencyCard(
+                    summary = uiState.fuelEfficiencySummary!!,
+                    onClick = onNavigateToGastos
+                )
+            }
+        }
+
         // ── Pico y Placa card (card 5) ────────────────────────────────────
         val (c5Alpha, c5Ty) = staggeredEntrance(5)
         Row(
@@ -1132,4 +1151,102 @@ private fun PulsingDot(color: Color) {
             .clip(CircleShape)
             .background(color.copy(alpha = alpha))
     )
+}
+
+@Composable
+private fun HomeFuelEfficiencyCard(
+    summary: FuelEfficiencySummary,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = PrimaryContainer.copy(alpha = 0.15f),
+        border = BorderStroke(1.dp, Primary.copy(alpha = 0.3f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "⚡ RENDIMIENTO DE COMBUSTIBLE",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Primary
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "Ver en Gastos",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Primary
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Ir a Gastos",
+                        tint = Primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val kpg = summary.kmPerGallonAverage
+                        ?: summary.averageKmPerGallon.takeIf { it > 0.0 }
+                        ?: (if (summary.totalGallonsPurchased > 0 && summary.totalKmTraveled > 0)
+                            summary.totalKmTraveled.toDouble() / summary.totalGallonsPurchased else 0.0)
+                    Text(
+                        if (kpg > 0.0) "${"%.1f".format(kpg)} km/gal" else "⏳ Acumulando",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (kpg > 0.0) Primary else OnSurfaceVariant
+                    )
+                    Text("Promedio real", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val cpk = if (summary.costPerKmReal > 0) summary.costPerKmReal else summary.costPerKm
+                    Text(
+                        if (cpk > 0) "$ ${currencyFmt.format(cpk.toLong())}/km" else "--",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Secondary
+                    )
+                    Text("Costo por km", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                }
+
+                if (summary.totalKmTraveled > 0) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "${currencyFmt.format(summary.totalKmTraveled)} km",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = OnSurface
+                        )
+                        Text("Total recorrido", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
 }
