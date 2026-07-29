@@ -110,6 +110,29 @@ class ExpenseRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun importExpensesBatch(vehicleId: String, expenses: List<VehicleExpense>): Result<Int> {
+        val userId = auth.currentUser?.uid
+            ?: return Result.failure(Exception("No hay sesión activa"))
+        return try {
+            val collection = getExpensesCollection(userId)
+            val chunks = expenses.chunked(450)
+            var count = 0
+            for (chunk in chunks) {
+                val batch = db.batch()
+                for (exp in chunk) {
+                    val docId = if (exp.id.isNotBlank()) exp.id else collection.document().id
+                    val docRef = collection.document(docId)
+                    batch.set(docRef, exp.copy(vehicleId = vehicleId).toFirestoreMap())
+                }
+                batch.commit().await()
+                count += chunk.size
+            }
+            Result.success(count)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ── Mapping helpers ────────────────────────────────────────────────────────
 
     private fun com.google.firebase.firestore.DocumentSnapshot.toVehicleExpense(): VehicleExpense? {
@@ -118,28 +141,47 @@ class ExpenseRepositoryImpl @Inject constructor(
         } catch (e: IllegalArgumentException) { return null }
 
         val fuelDetails = if (type == ExpenseType.FUEL) {
-            val unit = try {
-                FuelUnit.valueOf(getString("enteredUnit") ?: FuelUnit.GALLON.name)
-            } catch (e: Exception) { FuelUnit.GALLON }
+            val fuelMap = get("fuelDetails") as? Map<*, *>
+
+            fun getDbl(key: String): Double {
+                val valFromMap = (fuelMap?.get(key) as? Number)?.toDouble()
+                if (valFromMap != null) return valFromMap
+                return getDouble(key) ?: 0.0
+            }
+
+            fun getIntVal(key: String): Int {
+                val valFromMap = (fuelMap?.get(key) as? Number)?.toInt()
+                if (valFromMap != null) return valFromMap
+                return getLong(key)?.toInt() ?: 0
+            }
+
+            fun getBoolVal(key: String): Boolean {
+                val valFromMap = fuelMap?.get(key) as? Boolean
+                if (valFromMap != null) return valFromMap
+                return getBoolean(key) ?: false
+            }
+
+            val unitStr = (fuelMap?.get("enteredUnit") as? String)
+                ?: getString("enteredUnit")
+                ?: FuelUnit.GALLON.name
+            val unit = try { FuelUnit.valueOf(unitStr) } catch (e: Exception) { FuelUnit.GALLON }
 
             FuelDetails(
-                gallons = getDouble("gallons") ?: 0.0,
-                liters = getDouble("liters") ?: 0.0,
-                pricePerGallon = getDouble("pricePerGallon") ?: 0.0,
-                pricePerLiter = getDouble("pricePerLiter") ?: 0.0,
+                gallons = getDbl("gallons"),
+                liters = getDbl("liters"),
+                pricePerGallon = getDbl("pricePerGallon"),
+                pricePerLiter = getDbl("pricePerLiter"),
                 enteredUnit = unit,
-                enteredQuantity = getDouble("enteredQuantity") ?: 0.0,
-                pricePerEnteredUnit = getDouble("pricePerEnteredUnit") ?: 0.0,
-                odometerAtRefuel = getLong("odometerAtRefuel")?.toInt() ?: 0,
-                previousOdometer = getLong("previousOdometer")?.toInt() ?: 0,
-                kmTraveled = getLong("kmTraveled")?.toInt() ?: 0,
-                kmPerGallon = getDouble("kmPerGallon") ?: 0.0,
-                kmPerLiter = getDouble("kmPerLiter") ?: 0.0,
-                // 🆕 Campos Multifase — default false para retro-compatibilidad con
-                // registros anteriores que no tenían estos campos en Firestore.
-                isReserve = getBoolean("isReserve") ?: false,
-                isFullTank = getBoolean("isFullTank") ?: false,
-                isPartial = getBoolean("isPartial") ?: false
+                enteredQuantity = getDbl("enteredQuantity"),
+                pricePerEnteredUnit = getDbl("pricePerEnteredUnit"),
+                odometerAtRefuel = getIntVal("odometerAtRefuel"),
+                previousOdometer = getIntVal("previousOdometer"),
+                kmTraveled = getIntVal("kmTraveled"),
+                kmPerGallon = getDbl("kmPerGallon"),
+                kmPerLiter = getDbl("kmPerLiter"),
+                isReserve = getBoolVal("isReserve"),
+                isFullTank = getBoolVal("isFullTank"),
+                isPartial = getBoolVal("isPartial")
             )
         } else null
 
@@ -163,22 +205,24 @@ class ExpenseRepositoryImpl @Inject constructor(
             "notes" to notes
         )
         fuelDetails?.let { d ->
-            base["gallons"] = d.gallons
-            base["liters"] = d.liters
-            base["pricePerGallon"] = d.pricePerGallon
-            base["pricePerLiter"] = d.pricePerLiter
-            base["enteredUnit"] = d.enteredUnit.name
-            base["enteredQuantity"] = d.enteredQuantity
-            base["pricePerEnteredUnit"] = d.pricePerEnteredUnit
-            base["odometerAtRefuel"] = d.odometerAtRefuel
-            base["previousOdometer"] = d.previousOdometer
-            base["kmTraveled"] = d.kmTraveled
-            base["kmPerGallon"] = d.kmPerGallon
-            base["kmPerLiter"] = d.kmPerLiter
-            // 🆕 Campos Multifase
-            base["isReserve"] = d.isReserve
-            base["isFullTank"] = d.isFullTank
-            base["isPartial"] = d.isPartial
+            val detailsMap = mapOf(
+                "gallons" to d.gallons,
+                "liters" to d.liters,
+                "pricePerGallon" to d.pricePerGallon,
+                "pricePerLiter" to d.pricePerLiter,
+                "enteredUnit" to d.enteredUnit.name,
+                "enteredQuantity" to d.enteredQuantity,
+                "pricePerEnteredUnit" to d.pricePerEnteredUnit,
+                "odometerAtRefuel" to d.odometerAtRefuel,
+                "previousOdometer" to d.previousOdometer,
+                "kmTraveled" to d.kmTraveled,
+                "kmPerGallon" to d.kmPerGallon,
+                "kmPerLiter" to d.kmPerLiter,
+                "isReserve" to d.isReserve,
+                "isFullTank" to d.isFullTank,
+                "isPartial" to d.isPartial
+            )
+            base["fuelDetails"] = detailsMap
         }
         return base
     }

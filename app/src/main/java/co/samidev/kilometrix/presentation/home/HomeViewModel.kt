@@ -19,6 +19,7 @@ import co.samidev.kilometrix.domain.repository.VehicleRepository
 import co.samidev.kilometrix.domain.repository.WorkShiftRepository
 import co.samidev.kilometrix.domain.usecase.CalculateFuelEfficiencyUseCase
 import co.samidev.kilometrix.domain.usecase.CalculatePicoYPlacaUseCase
+import co.samidev.kilometrix.domain.usecase.RecalculateFuelChainUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -42,6 +43,8 @@ data class HomeUiState(
     val activeShift: WorkShift? = null,
     val shiftElapsedMs: Long = 0L,
     val shiftTotalEarnings: Double = 0.0,
+    val shiftTotalExpenses: Double = 0.0,
+    val shiftNetProfit: Double = 0.0,
     val estimatedKmTraveled: Double = 0.0,
     val estimatedGallonsConsumed: Double = 0.0,
     val estimatedCostConsumed: Double = 0.0,
@@ -54,7 +57,8 @@ private data class HomeCoreData(
     val vehicle: Vehicle?,
     val picoResource: Resource<PicoPlacaResponse>,
     val shift: WorkShift?,
-    val fuelExpenses: List<VehicleExpense>
+    val fuelExpenses: List<VehicleExpense>,
+    val allExpenses: List<VehicleExpense>
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -67,7 +71,8 @@ class HomeViewModel @Inject constructor(
     private val calculatePicoYPlacaUseCase: CalculatePicoYPlacaUseCase,
     private val workShiftRepository: WorkShiftRepository,
     private val expenseRepository: ExpenseRepository,
-    private val calculateFuelEfficiencyUseCase: CalculateFuelEfficiencyUseCase
+    private val calculateFuelEfficiencyUseCase: CalculateFuelEfficiencyUseCase,
+    private val recalculateFuelChainUseCase: RecalculateFuelChainUseCase
 ) : ViewModel() {
 
     private val actionLoading = MutableStateFlow(false)
@@ -94,9 +99,13 @@ class HomeViewModel @Inject constructor(
         else flowOf(null)
     }
 
-    private val fuelHistory: Flow<List<VehicleExpense>> = activeVehicle.flatMapLatest { vehicle ->
-        if (vehicle != null) expenseRepository.getFuelHistory(vehicle.id)
-        else flowOf(emptyList())
+    private val vehicleExpensesData: Flow<Pair<List<VehicleExpense>, List<VehicleExpense>>> = activeVehicle.flatMapLatest { vehicle ->
+        if (vehicle != null) {
+            combine(
+                expenseRepository.getFuelHistory(vehicle.id),
+                expenseRepository.getExpensesRealtime(vehicle.id)
+            ) { fuel, all -> Pair(recalculateFuelChainUseCase(fuel), recalculateFuelChainUseCase(all)) }
+        } else flowOf(Pair(emptyList(), emptyList()))
     }
 
     private val coreDataFlow: Flow<HomeCoreData> = combine(
@@ -104,9 +113,9 @@ class HomeViewModel @Inject constructor(
         activeVehicle,
         picoYPlacaRepository.getPicoYPlacaData(),
         activeShift,
-        fuelHistory
-    ) { profile, vehicle, picoResource, shift, fuelExpenses ->
-        HomeCoreData(profile, vehicle, picoResource, shift, fuelExpenses)
+        vehicleExpensesData
+    ) { profile, vehicle, picoResource, shift, expensesPair ->
+        HomeCoreData(profile, vehicle, picoResource, shift, expensesPair.first, expensesPair.second)
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -135,12 +144,16 @@ class HomeViewModel @Inject constructor(
         // ── Cálculos del turno activo ──────────────────────────────────────────
         var elapsedMs = 0L
         var shiftEarningsTotal = 0.0
+        var shiftExpensesTotal = 0.0
         var estKm = 0.0
         var estGallons = 0.0
         var estCost = 0.0
 
         if (shift != null) {
             shiftEarningsTotal = shift.earnings.sumOf { it.amount }
+            shiftExpensesTotal = core.allExpenses
+                .filter { it.date >= shift.startTime }
+                .sumOf { it.amount }
 
             // Calcular tiempo activo efectivo
             elapsedMs = when (shift.status) {
@@ -178,6 +191,8 @@ class HomeViewModel @Inject constructor(
             activeShift = shift,
             shiftElapsedMs = elapsedMs,
             shiftTotalEarnings = shiftEarningsTotal,
+            shiftTotalExpenses = shiftExpensesTotal,
+            shiftNetProfit = shiftEarningsTotal - shiftExpensesTotal,
             estimatedKmTraveled = estKm,
             estimatedGallonsConsumed = estGallons,
             estimatedCostConsumed = estCost,
@@ -192,15 +207,15 @@ class HomeViewModel @Inject constructor(
 
     // ── Funciones de interacción del turno ────────────────────────────────────
 
-    fun startShift(initialOdometer: Int) {
+    fun startShift(initialOdometer: Int, type: co.samidev.kilometrix.domain.model.ShiftType = co.samidev.kilometrix.domain.model.ShiftType.WORK) {
         val vehicle = uiState.value.activeVehicle ?: return
         viewModelScope.launch {
             actionLoading.value = true
             errorMessage.value = null
-            val result = workShiftRepository.startShift(vehicle.id, initialOdometer)
+            val result = workShiftRepository.startShift(vehicle.id, initialOdometer, type)
             actionLoading.value = false
             if (result.isFailure) {
-                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al iniciar turno"
+                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al iniciar recorrido"
             }
         }
     }
@@ -217,12 +232,12 @@ class HomeViewModel @Inject constructor(
             }
             actionLoading.value = false
             if (result.isFailure) {
-                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al cambiar estado del turno"
+                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al cambiar estado del recorrido"
             }
         }
     }
 
-    fun addEarning(appName: String, appEmoji: String, amount: Double) {
+    fun addEarning(appName: String, appEmoji: String, amount: Double, date: Long = System.currentTimeMillis()) {
         val shift = uiState.value.activeShift ?: return
         if (amount <= 0.0) return
         viewModelScope.launch {
@@ -231,7 +246,8 @@ class HomeViewModel @Inject constructor(
             val earning = ShiftEarning(
                 appName = appName,
                 appEmoji = appEmoji,
-                amount = amount
+                amount = amount,
+                registeredAt = date
             )
             val result = workShiftRepository.addEarning(shift.id, earning)
             actionLoading.value = false
@@ -249,7 +265,7 @@ class HomeViewModel @Inject constructor(
             val result = workShiftRepository.endShift(shift.id, finalOdometer)
             actionLoading.value = false
             if (result.isFailure) {
-                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al finalizar turno"
+                errorMessage.value = result.exceptionOrNull()?.message ?: "Error al finalizar recorrido"
             }
         }
     }

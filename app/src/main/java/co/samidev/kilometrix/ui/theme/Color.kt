@@ -40,7 +40,7 @@ val OnPrimaryFixed = Color(0xFF00174B)
 val OnPrimaryFixedVariant = Color(0xFF003EA8)
 
 // Secondary – Vibrant Green
-val Secondary = Color(0xFF4EDEA3)
+val Secondary = Color(0xFF4CAF50)
 val OnSecondary = Color(0xFF003824)
 val SecondaryContainer = Color(0xFF00A572)
 val OnSecondaryContainer = Color(0xFF00311F)
@@ -50,7 +50,7 @@ val OnSecondaryFixed = Color(0xFF002113)
 val OnSecondaryFixedVariant = Color(0xFF005236)
 
 // Tertiary – Warning Amber
-val Tertiary = Color(0xFFFFB95F)
+val Tertiary = Color(0xFF0A2F6E)
 val OnTertiary = Color(0xFF472A00)
 val TertiaryContainer = Color(0xFF996100)
 val OnTertiaryContainer = Color(0xFFFFEEDD)
@@ -60,7 +60,7 @@ val OnTertiaryFixed = Color(0xFF2A1700)
 val OnTertiaryFixedVariant = Color(0xFF653E00)
 
 // Error
-val Error = Color(0xFFFFB4AB)
+val Error = Color(0xFF2196F3)
 val OnError = Color(0xFF690005)
 val ErrorContainer = Color(0xFF93000A)
 val OnErrorContainer = Color(0xFFFFDAD6)

@@ -12,14 +12,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import co.samidev.kilometrix.R
 import co.samidev.kilometrix.domain.model.ExpenseType
 import co.samidev.kilometrix.presentation.analytics.AnalyticsScreen
@@ -27,6 +34,8 @@ import co.samidev.kilometrix.presentation.home.HomeScreen
 import co.samidev.kilometrix.presentation.profile.ProfileScreen
 import co.samidev.kilometrix.presentation.transactions.ActionState
 import co.samidev.kilometrix.presentation.transactions.AddExpenseBottomSheet
+import co.samidev.kilometrix.presentation.transactions.AddExpenseSheetContent
+import co.samidev.kilometrix.presentation.components.AddEarningSheetContent
 import co.samidev.kilometrix.presentation.transactions.RefuelCycleType
 import co.samidev.kilometrix.presentation.transactions.TransactionsScreen
 import co.samidev.kilometrix.presentation.transactions.TransactionsViewModel
@@ -42,28 +51,62 @@ private enum class Tab(val labelRes: Int, val emoji: String) {
     PROFILE(R.string.nav_profile, "👤"),
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     onLogout: () -> Unit,
     onNavigateToPicoPlaca: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(Tab.HOME) }
-    var showAddExpenseSheet by remember { mutableStateOf(false) }
+    var showFabSheet by remember { mutableStateOf(false) }
+    var fabSheetTab by remember { mutableStateOf(0) } // 0=Gastos, 1=Ganancias
 
     // ViewModel compartido — instancia única para el sheet global
     val transactionsViewModel: TransactionsViewModel = hiltViewModel()
     val selectedVehicle by transactionsViewModel.selectedVehicle.collectAsState()
     val actionState by transactionsViewModel.actionState.collectAsState()
 
-    // Cierra el sheet automáticamente al guardar exitosamente
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Reacciona a éxito y error
     LaunchedEffect(actionState) {
-        if (actionState is ActionState.Success) {
-            showAddExpenseSheet = false
-            transactionsViewModel.resetActionState()
+        when (val state = actionState) {
+            is ActionState.Success -> {
+                showFabSheet = false
+                transactionsViewModel.resetActionState()
+            }
+            is ActionState.Error -> {
+                showFabSheet = false
+                snackbarHostState.showSnackbar(state.message)
+                transactionsViewModel.resetActionState()
+            }
+            else -> {}
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Background)) {
+    var isFabVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(selectedTab) {
+        isFabVisible = true
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -10f) {
+                    isFabVisible = false
+                } else if (available.y > 10f) {
+                    isFabVisible = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Background
+    ) { innerPadding ->
+    Box(modifier = Modifier.fillMaxSize().background(Background).padding(innerPadding).nestedScroll(nestedScrollConnection)) {
 
         // ── Content with AnimatedContent slide transition ──────────────────
         AnimatedContent(
@@ -97,36 +140,83 @@ fun MainScreen(
             }
         }
 
-        // ── Sheet global: aparece sobre cualquier tab ───────────────────────
-        if (showAddExpenseSheet) {
-            AddExpenseBottomSheet(
-                vehicle = selectedVehicle,
-                previousOdometer = selectedVehicle?.odometer ?: 0,
-                onDismiss = { showAddExpenseSheet = false },
-                onSave = { expense, fuelUnit, quantity, pricePerUnit, odometerNow, cycleType ->
-                    val vehicleOdometer = selectedVehicle?.odometer ?: 0
-                    val finalExpense = if (expense.type == ExpenseType.FUEL) {
-                        val fuelDetails = transactionsViewModel.buildFuelDetails(
-                            enteredQuantity = quantity,
-                            enteredUnit = fuelUnit,
-                            pricePerUnit = pricePerUnit,
-                            odometerAtRefuel = odometerNow,
-                            previousOdometer = vehicleOdometer,
-                            isReserve = cycleType.isReserve,
-                            isFullTank = cycleType.isFullTank,
-                            isPartial = cycleType.isPartial
+        // ── Unified FAB Sheet: Gastos | Ganancias ──────────────────
+        if (showFabSheet) {
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ModalBottomSheet(
+                onDismissRequest = { showFabSheet = false },
+                sheetState = sheetState,
+                containerColor = SurfaceContainerLow
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Tabs
+                    PrimaryTabRow(
+                        selectedTabIndex = fabSheetTab,
+                        containerColor = SurfaceContainerLow,
+                        contentColor = Primary
+                    ) {
+                        Tab(
+                            selected = fabSheetTab == 0,
+                            onClick = { fabSheetTab = 0 },
+                            text = { Text("💸 Gastos", fontWeight = if (fabSheetTab == 0) FontWeight.Bold else FontWeight.Normal) }
                         )
-                        expense.copy(fuelDetails = fuelDetails)
-                    } else expense
-                    transactionsViewModel.addExpense(finalExpense)
-                },
-                viewModel = transactionsViewModel
-            )
+                        Tab(
+                            selected = fabSheetTab == 1,
+                            onClick = { fabSheetTab = 1 },
+                            text = { Text("💰 Ganancias", fontWeight = if (fabSheetTab == 1) FontWeight.Bold else FontWeight.Normal) }
+                        )
+                    }
+
+                    when (fabSheetTab) {
+                        0 -> {
+                            // ── Contenido de Gastos ────────────────────────
+                            AddExpenseSheetContent(
+                                vehicle = selectedVehicle,
+                                previousOdometer = selectedVehicle?.odometer ?: 0,
+                                onSave = { expense, fuelUnit, quantity, pricePerUnit, odometerNow, cycleType, dateMs ->
+                                    val vehicleOdometer = selectedVehicle?.odometer ?: 0
+                                    val finalExpense = if (expense.type == ExpenseType.FUEL) {
+                                        val fuelDetails = transactionsViewModel.buildFuelDetails(
+                                            enteredQuantity = quantity,
+                                            enteredUnit = fuelUnit,
+                                            pricePerUnit = pricePerUnit,
+                                            odometerAtRefuel = odometerNow,
+                                            previousOdometer = vehicleOdometer,
+                                            isReserve = cycleType.isReserve,
+                                            isFullTank = cycleType.isFullTank,
+                                            isPartial = cycleType.isPartial
+                                        )
+                                        expense.copy(fuelDetails = fuelDetails)
+                                    } else expense
+                                    transactionsViewModel.addExpense(finalExpense)
+                                }
+                            )
+                        }
+                        1 -> {
+                            // ── Contenido de Ganancias ─────────────────────
+                            AddEarningSheetContent(
+                                vehicle = selectedVehicle,
+                                onSave = { appName, appEmoji, amount, isBonus, date ->
+                                    transactionsViewModel.addStandaloneEarning(
+                                        vehicleId = selectedVehicle?.id,
+                                        appName = appName,
+                                        appEmoji = appEmoji,
+                                        amount = amount,
+                                        isBonus = isBonus,
+                                        date = date
+                                    )
+                                },
+                                onDismiss = { showFabSheet = false }
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // ── FAB with entrance animation ────────────────────────────────────
         AnimatedVisibility(
-            visible = selectedTab != Tab.PROFILE && selectedTab != Tab.VEHICLE,
+            visible = isFabVisible && selectedTab != Tab.PROFILE && selectedTab != Tab.VEHICLE,
             enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
             exit = scaleOut(tween(150)) + fadeOut(tween(100)),
             modifier = Modifier
@@ -134,7 +224,7 @@ fun MainScreen(
                 .padding(end = 20.dp, bottom = 88.dp)
         ) {
             FloatingActionButton(
-                onClick = { showAddExpenseSheet = true },
+                onClick = { showFabSheet = true },
                 containerColor = PrimaryContainer,
                 contentColor = Color.White,
                 shape = CircleShape,
@@ -150,7 +240,8 @@ fun MainScreen(
             onTabSelected = { selectedTab = it },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
-    }
+    } // end Box
+    } // end Scaffold
 }
 
 @Composable

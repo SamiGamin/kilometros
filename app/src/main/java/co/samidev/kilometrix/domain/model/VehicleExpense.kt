@@ -63,7 +63,10 @@ data class FuelDetails(
     val isReserve: Boolean = false,         // Testigo de reserva encendido → hito de calibración
     val isFullTank: Boolean = false,        // Llenado completo → cierre de ciclo de calibración
     val isPartial: Boolean = false          // Tanqueo parcial (ni reserva ni tanque lleno)
-)
+) {
+    val litersPer100Km: Double
+        get() = if (kmTraveled > 0 && liters > 0) (liters * 100.0) / kmTraveled else if (kmPerLiter > 0) 100.0 / kmPerLiter else 0.0
+}
 
 /**
  * Gasto del vehículo. Para combustible, [fuelDetails] contiene

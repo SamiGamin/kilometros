@@ -138,7 +138,7 @@ fun AddExpenseBottomSheet(
     vehicle: Vehicle?,
     previousOdometer: Int,
     onDismiss: () -> Unit,
-    onSave: (VehicleExpense, FuelUnit, Double, Double, Int, RefuelCycleType) -> Unit,
+    onSave: (VehicleExpense, FuelUnit, Double, Double, Int, RefuelCycleType, Long) -> Unit,
     viewModel: TransactionsViewModel
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -158,11 +158,48 @@ fun AddExpenseBottomSheet(
 }
 
 @Composable
-private fun AddExpenseSheetContent(
+internal fun AddExpenseSheetContent(
     vehicle: Vehicle?,
     previousOdometer: Int,
-    onSave: (VehicleExpense, FuelUnit, Double, Double, Int, RefuelCycleType) -> Unit
+    onSave: (VehicleExpense, FuelUnit, Double, Double, Int, RefuelCycleType, Long) -> Unit
 ) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var selectedDateMs by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    if (showDatePicker) {
+        val bogotaTz = remember { java.util.TimeZone.getTimeZone("America/Bogota") }
+        val bogotaCal = remember { java.util.Calendar.getInstance(bogotaTz) }
+        val utcCal = remember {
+            java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+                set(
+                    bogotaCal.get(java.util.Calendar.YEAR),
+                    bogotaCal.get(java.util.Calendar.MONTH),
+                    bogotaCal.get(java.util.Calendar.DAY_OF_MONTH),
+                    0, 0, 0
+                )
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+        }
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = utcCal.timeInMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { utcMidnight ->
+                        // El DatePicker devuelve medianoche UTC. Ajustamos a medianoche Colombia (UTC-5)
+                        val bogotaOffsetMs = java.util.TimeZone.getTimeZone("America/Bogota").getOffset(utcMidnight)
+                        selectedDateMs = utcMidnight - bogotaOffsetMs
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
     var selectedType by remember { mutableStateOf(ExpenseType.FUEL) }
     var notesText by remember { mutableStateOf("") }
 
@@ -193,28 +230,28 @@ private fun AddExpenseSheetContent(
 
     // Validation
     val odometerEntered = odometerText.isNotBlank()
+    val isFuel = selectedType == ExpenseType.FUEL
+
     val odometerError: String? = when {
+        isFuel && !odometerEntered ->
+            "El odómetro es obligatorio para registrar combustible"
         odometerEntered && odometerNow <= 0 ->
             "El odómetro debe ser mayor a 0"
+        odometerEntered && odometerNow > 1_500_000 ->
+            "Odómetro demasiado alto (${currencyFormat.format(odometerNow)} km). Revisa los dígitos."
         odometerEntered && previousOdometer > 0 && odometerNow < previousOdometer ->
             "Debe ser mayor al anterior: ${currencyFormat.format(previousOdometer)} km"
         odometerEntered && previousOdometer > 0 && odometerNow == previousOdometer ->
             "Debe ser mayor al anterior (sin km recorridos)"
+        odometerEntered && previousOdometer > 0 && kmTraveled > 1000 ->
+            "⚠️ Son +${currencyFormat.format(kmTraveled)} km recorridos. Por favor verifica si escribiste un número de más."
         else -> null
     }
 
-    val odometerWarning: String? = if (
-        odometerError == null &&
-        odometerEntered &&
-        previousOdometer > 0 &&
-        kmTraveled > 1000
-    ) {
-        "¡Eso es mucho! Llevas ${currencyFormat.format(kmTraveled)} km desde el último llenado. ¿Estás seguro?"
-    } else null
+    val odometerWarning: String? = null
 
-    val odometerIsValid = !odometerEntered || odometerError == null
+    val odometerIsValid = if (isFuel) (odometerEntered && odometerError == null) else (!odometerEntered || odometerError == null)
 
-    val isFuel = selectedType == ExpenseType.FUEL
     val canSave = if (isFuel) {
         quantity > 0.0 && pricePerUnit > 0.0 && vehicle != null && odometerIsValid
     } else {
@@ -342,6 +379,30 @@ private fun AddExpenseSheetContent(
             onSelect = { selectedType = it }
         )
 
+        // ── Date selector ───────────────────────────────────────────────────────
+        val dateFmt = remember { java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale("es", "CO")) }
+        val isToday = remember(selectedDateMs) {
+            val cal1 = java.util.Calendar.getInstance()
+            val cal2 = java.util.Calendar.getInstance().apply { timeInMillis = selectedDateMs }
+            cal1.get(java.util.Calendar.YEAR) == cal2.get(java.util.Calendar.YEAR) &&
+            cal1.get(java.util.Calendar.DAY_OF_YEAR) == cal2.get(java.util.Calendar.DAY_OF_YEAR)
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showDatePicker = true }
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Fecha del gasto:", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
+            Text(
+                text = if (isToday) "Hoy y Ahora" else dateFmt.format(java.util.Date(selectedDateMs)),
+                style = MaterialTheme.typography.titleMedium,
+                color = Primary
+            )
+        }
+
         // ── Fuel/Energy specific fields ─────────────────────────────────────────
         AnimatedVisibility(
             visible = isFuel,
@@ -445,11 +506,7 @@ private fun AddExpenseSheetContent(
                 AnimatedVisibility(visible = kmTraveled > 0 && quantity > 0.0) {
                     FuelPreviewCard(
                         totalAmount = totalFuel,
-                        kmTraveled = kmTraveled,
-                        kmPerGallon = kmPerGallon,
-                        kmPerLiter = kmPerLiter,
-                        fuelConfig = fuelConfig,
-                        fuelUnit = fuelUnit
+                        kmTraveled = kmTraveled
                     )
                 }
 
@@ -506,7 +563,8 @@ private fun AddExpenseSheetContent(
                     quantity,
                     pricePerUnit,
                     odometerNow,
-                    refuelCycleType   // 🆕 Tipo de ciclo
+                    refuelCycleType,
+                    selectedDateMs
                 )
             },
             enabled = canSave,
@@ -795,11 +853,7 @@ private fun ExpenseTextField(
 @Composable
 private fun FuelPreviewCard(
     totalAmount: Double,
-    kmTraveled: Int,
-    kmPerGallon: Double,
-    kmPerLiter: Double,
-    fuelConfig: FuelConfig,
-    fuelUnit: FuelUnit
+    kmTraveled: Int
 ) {
     Row(
         modifier = Modifier
@@ -808,18 +862,12 @@ private fun FuelPreviewCard(
             .background(SecondaryContainer.copy(alpha = 0.15f))
             .border(1.dp, Secondary.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
             .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         PreviewStat(label = "Total", value = "$ ${currencyFormat.format(totalAmount.toLong())}")
-        PreviewStat(label = "km recorridos", value = "${currencyFormat.format(kmTraveled)} km")
-
-        val effVal = if (fuelConfig.isElectricOrGnv) kmPerGallon else if (fuelUnit == FuelUnit.GALLON) kmPerGallon else kmPerLiter
-        val effUnit = if (fuelConfig.isElectricOrGnv) fuelConfig.efficiencyUnit else if (fuelUnit == FuelUnit.GALLON) "km/gal" else "km/L"
-
-        PreviewStat(label = "Rendimiento", value = "${"%.1f".format(effVal)} $effUnit")
-        if (!fuelConfig.isElectricOrGnv && fuelUnit == FuelUnit.GALLON) {
-            PreviewStat(label = "", value = "${"%.1f".format(kmPerLiter)} km/L")
-        }
+        PreviewStat(label = "Tramo recorrido", value = "${currencyFormat.format(kmTraveled)} km")
+        PreviewStat(label = "Rendimiento", value = "⏳ En progreso")
     }
 }
 

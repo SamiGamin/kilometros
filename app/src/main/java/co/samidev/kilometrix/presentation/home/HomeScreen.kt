@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import co.samidev.kilometrix.R
 import co.samidev.kilometrix.domain.model.ShiftStatus
+import co.samidev.kilometrix.domain.model.ShiftType
 import co.samidev.kilometrix.domain.model.TRANSPORT_APPS
 import co.samidev.kilometrix.domain.model.TransportApp
 import co.samidev.kilometrix.presentation.util.ThousandSeparatorVisualTransformation
@@ -96,6 +97,8 @@ fun HomeScreen(
     var showStartShiftDialog by remember { mutableStateOf(false) }
     var showEndShiftDialog by remember { mutableStateOf(false) }
     var showAddEarningDialog by remember { mutableStateOf(false) }
+    var showNoEarningsConfirm by remember { mutableStateOf(false) }
+    var pendingEndShiftAfterEarning by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -196,7 +199,7 @@ fun HomeScreen(
                         )
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = SecondaryContainer
+                            color = Secondary.copy(alpha = 0.15f)
                         ) {
                             Text(
                                 text = "⚡ ACTIVO",
@@ -228,48 +231,128 @@ fun HomeScreen(
             }
         }
 
-        // ── Earnings card (card 2) ────────────────────────────────────────
-        val (c2Alpha, c2Ty) = staggeredEntrance(2)
+        // ── Earnings/Expenses card (card 2) — Visible solo cuando hay recorrido activo ──
         val shiftActive = uiState.activeShift != null
-        val displayEarnings = if (shiftActive) uiState.shiftTotalEarnings else 0.0
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .alpha(c2Alpha)
-                .offset(y = c2Ty.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(SurfaceContainerLow)
-                .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
+        AnimatedVisibility(
+            visible = shiftActive,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
         ) {
+            val (c2Alpha, c2Ty) = staggeredEntrance(2)
+            val isPersonalShift = uiState.activeShift?.type == ShiftType.PERSONAL
+            val netProfit = uiState.shiftNetProfit
+            val totalEarnings = uiState.shiftTotalEarnings
+            val totalExpenses = uiState.shiftTotalExpenses
+
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
-                    .background(PrimaryContainer)
-            )
-            Column(
-                modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                    .fillMaxWidth()
+                    .alpha(c2Alpha)
+                    .offset(y = c2Ty.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF131B2E))
+                    .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
             ) {
-                Text(
-                    text = if (shiftActive) "GANANCIA DEL TURNO ACTIVO" else stringResource(R.string.home_earnings_label),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Primary,
-                    fontWeight = FontWeight.Bold
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .align(Alignment.CenterStart)
+                        .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
+                        .background(if (isPersonalShift) Primary else if (netProfit < 0) Error else Primary)
                 )
-                Text(
-                    text = "$ ${currencyFmt.format(displayEarnings.toLong())}",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = OnSurface
-                )
-                Text(
-                    text = if (shiftActive) "${uiState.activeShift?.earnings?.size ?: 0} ingresos registrados en este turno"
-                           else stringResource(R.string.home_earnings_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OnSurfaceVariant
-                )
+                Column(
+                    modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isPersonalShift) "RECORRIDO PERSONAL ACTIVO"
+                                   else "BALANCE NETO DEL RECORRIDO",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OnSurfaceVariant,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isPersonalShift) Primary.copy(alpha = 0.15f)
+                                    else if (netProfit >= 0) Secondary.copy(alpha = 0.15f)
+                                    else Error.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (isPersonalShift) "🏠 Personal"
+                                       else if (netProfit >= 0) "🟢 Ganancia"
+                                       else "🔴 Pérdida / Gasto",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isPersonalShift) Primary else if (netProfit >= 0) Secondary else Error,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    if (isPersonalShift) {
+                        Text(
+                            text = if (totalExpenses > 0) "$ ${currencyFmt.format(totalExpenses.toLong())} en gastos"
+                                   else "~${"%.1f".format(uiState.estimatedKmTraveled)} km",
+                            style = MaterialTheme.typography.displayLarge,
+                            color = OnSurface
+                        )
+                        Text(
+                            text = if (totalExpenses > 0) "Gastos registrados durante este trayecto personal"
+                                   else "Trayecto particular sin registro de ganancias",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OnSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = "$ ${currencyFmt.format(netProfit.toLong())}",
+                            style = MaterialTheme.typography.displayLarge,
+                            color = if (netProfit >= 0) OnSurface else Error
+                        )
+
+                        HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("🟢", fontSize = 12.sp)
+                                Text("Ingresos:", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                Text(
+                                    "$ ${currencyFmt.format(totalEarnings.toLong())}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = OnSurface
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("🔴", fontSize = 12.sp)
+                                Text("Gastos:", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                Text(
+                                    "$ ${currencyFmt.format(totalExpenses.toLong())}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Error
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -296,12 +379,12 @@ fun HomeScreen(
                 ) {
                     Text("🚀", style = MaterialTheme.typography.displayLarge)
                     Text(
-                        text = "¿Empezar tu turno de hoy?",
+                        text = "¿Iniciar un nuevo recorrido?",
                         style = MaterialTheme.typography.headlineSmall,
                         color = OnSurface
                     )
                     Text(
-                        text = "Registra tu odómetro inicial para medir tiempo activo, ganancias por app y costo de combustible.",
+                        text = "Registra tu odómetro inicial para medir tiempo activo, distancia, combustible y gastos o ganancias.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = OnSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -315,7 +398,7 @@ fun HomeScreen(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text(
-                            text = "Iniciar Turno",
+                            text = "Iniciar Recorrido",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = OnSecondary
                         )
@@ -329,17 +412,12 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    if (isPaused) Color(0xFF2D1B00) else Color(0xFF0D2818),
-                                    SurfaceContainerLow
-                                )
-                            )
-                        )
+                        .background(SurfaceContainerLow)
                         .border(
-                            1.5.dp,
-                            if (isPaused) Color(0xFFFF9800).copy(alpha = 0.6f) else Secondary.copy(alpha = 0.6f),
+                            1.dp,
+                            if (isPaused) Color(0xFFFF9800).copy(alpha = 0.4f)
+                            else if (shift.type == ShiftType.PERSONAL) Primary.copy(alpha = 0.3f)
+                            else Secondary.copy(alpha = 0.3f),
                             RoundedCornerShape(20.dp)
                         )
                         .padding(18.dp),
@@ -355,21 +433,33 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("🚗", style = MaterialTheme.typography.titleMedium)
+                            Text(if (shift.type == ShiftType.PERSONAL) "🏠" else "🚕", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                text = "TURNO EN CURSO",
+                                text = "RECORRIDO EN CURSO",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = OnSurface
                             )
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (shift.type == ShiftType.PERSONAL) Primary.copy(alpha = 0.15f) else Secondary.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = if (shift.type == ShiftType.PERSONAL) "Personal" else "Trabajo",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (shift.type == ShiftType.PERSONAL) Primary else Secondary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
                         }
 
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = if (isPaused) Color(0xFFFF9800).copy(alpha = 0.2f) else Color(0xFF4CAF50).copy(alpha = 0.2f),
+                            color = if (isPaused) Color(0xFFFF9800).copy(alpha = 0.15f) else Secondary.copy(alpha = 0.15f),
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isPaused) Color(0xFFFF9800) else Color(0xFF4CAF50)
+                                if (isPaused) Color(0xFFFF9800).copy(alpha = 0.5f) else Secondary.copy(alpha = 0.5f)
                             )
                         ) {
                             Row(
@@ -377,12 +467,12 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                PulsingDot(color = if (isPaused) Color(0xFFFF9800) else Color(0xFF4CAF50))
+                                PulsingDot(color = if (isPaused) Color(0xFFFF9800) else Secondary)
                                 Text(
                                     text = if (isPaused) "EN PAUSA" else "LIVE",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (isPaused) Color(0xFFFF9800) else Color(0xFF4CAF50)
+                                    color = if (isPaused) Color(0xFFFF9800) else Secondary
                                 )
                             }
                         }
@@ -397,7 +487,7 @@ fun HomeScreen(
                             text = formatMs(uiState.shiftElapsedMs),
                             style = MaterialTheme.typography.displayMedium,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (isPaused) Color(0xFFFFB74D) else Secondary
+                            color = if (isPaused) Color(0xFFFFB74D) else OnSurface
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Text(
@@ -438,56 +528,78 @@ fun HomeScreen(
                         )
                     }
 
-                    // Ganancias por App
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "GANANCIAS REGISTRADAS",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = OnSurfaceVariant,
-                                fontWeight = FontWeight.Bold
-                            )
-                            TextButton(onClick = { showAddEarningDialog = true }) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Registrar ingreso", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-
-                        if (shift.earnings.isEmpty()) {
-                            Text(
-                                text = "No has registrado ingresos en este turno.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = OnSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                        } else {
+                    // Ganancias por App (solo para recorridos de Trabajo)
+                    if (shift.type == ShiftType.WORK) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                shift.earnings.take(4).forEach { earning ->
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = SurfaceContainerHigh
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                Text(
+                                    text = "GANANCIAS REGISTRADAS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = OnSurfaceVariant,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                TextButton(onClick = { showAddEarningDialog = true }) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Registrar ingreso", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+
+                            if (shift.earnings.isEmpty()) {
+                                Text(
+                                    text = "No has registrado ingresos en este recorrido.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = OnSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            } else {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    shift.earnings.take(4).forEach { earning ->
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = SurfaceContainerHigh
                                         ) {
-                                            Text(earning.appEmoji, fontSize = 12.sp)
-                                            Text(
-                                                text = "$ ${currencyFmt.format(earning.amount.toLong())}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Text(earning.appEmoji, fontSize = 12.sp)
+                                                Text(
+                                                    text = "$ ${currencyFmt.format(earning.amount.toLong())}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
                                 }
+                            }
+                        }
+                    } else {
+                        // Banner informativo para Recorrido Personal
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = SurfaceContainerHigh.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("🏠", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    text = "Recorrido particular / personal. Midiendo odómetro, tiempo y consumo de combustible.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = OnSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -519,7 +631,13 @@ fun HomeScreen(
                         }
 
                         Button(
-                            onClick = { showEndShiftDialog = true },
+                            onClick = {
+                                if (shift.type == ShiftType.WORK && shift.earnings.isNullOrEmpty()) {
+                                    showNoEarningsConfirm = true
+                                } else {
+                                    showEndShiftDialog = true
+                                }
+                            },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp),
@@ -649,10 +767,11 @@ fun HomeScreen(
 
     // ── DIÁLOGOS DE CONTROL DE TURNO ─────────────────────────────────────────
 
-    // 1. Diálogo Iniciar Turno
+    // 1. Diálogo Iniciar Recorrido
     if (showStartShiftDialog) {
         val defaultOd = uiState.activeVehicle?.odometer ?: 0
         var odText by remember { mutableStateOf(if (defaultOd > 0) defaultOd.toString() else "") }
+        var selectedType by remember { mutableStateOf(ShiftType.WORK) }
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
         ModalBottomSheet(
@@ -667,14 +786,66 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "🚀 Iniciar Turno de Conducción",
+                    text = "🚀 Iniciar Recorrido",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Ingresa el odómetro actual con el que comienzas tu jornada de trabajo:",
-                    style = MaterialTheme.typography.bodyMedium
+                    text = "Selecciona el tipo de recorrido e ingresa el odómetro inicial:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OnSurfaceVariant
                 )
+
+                // Selector de Tipo: Trabajo vs Personal
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (selectedType == ShiftType.WORK) PrimaryContainer.copy(alpha = 0.3f) else SurfaceContainerHigh,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.5.dp,
+                            if (selectedType == ShiftType.WORK) Primary else Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { selectedType = ShiftType.WORK }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("🚕", fontSize = 24.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text("Trabajo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (selectedType == ShiftType.WORK) Primary else OnSurface)
+                            Text("Apps / Ganancias", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (selectedType == ShiftType.PERSONAL) PrimaryContainer.copy(alpha = 0.3f) else SurfaceContainerHigh,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.5.dp,
+                            if (selectedType == ShiftType.PERSONAL) Primary else Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { selectedType = ShiftType.PERSONAL }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("🏠", fontSize = 24.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text("Personal", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (selectedType == ShiftType.PERSONAL) Primary else OnSurface)
+                            Text("Particular / Viajes", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = odText,
                     onValueChange = { if (it.all { char -> char.isDigit() }) odText = it },
@@ -697,13 +868,13 @@ fun HomeScreen(
                         onClick = {
                             val od = odText.toIntOrNull() ?: 0
                             if (od > 0) {
-                                viewModel.startShift(od)
+                                viewModel.startShift(od, selectedType)
                                 showStartShiftDialog = false
                             }
                         },
                         enabled = (odText.toIntOrNull() ?: 0) > 0
                     ) {
-                        Text("Iniciar")
+                        Text("Iniciar Recorrido")
                     }
                 }
             }
@@ -712,12 +883,114 @@ fun HomeScreen(
 
     // 2. Diálogo Registrar Ganancia por App
     if (showAddEarningDialog) {
-        var selectedApp by remember { mutableStateOf<TransportApp?>(TRANSPORT_APPS.first()) }
-        var amountText by remember { mutableStateOf("") }
+        co.samidev.kilometrix.presentation.components.AddEarningBottomSheet(
+            vehicle = uiState.activeVehicle,
+            onDismiss = {
+                showAddEarningDialog = false
+                if (pendingEndShiftAfterEarning) {
+                    pendingEndShiftAfterEarning = false
+                    showEndShiftDialog = true
+                }
+            },
+            onSave = { appName, appEmoji, amount, isBonus, date ->
+                val finalName = if (isBonus) "$appName (Bono)" else appName
+                val finalEmoji = if (isBonus) "🎁" else appEmoji
+                viewModel.addEarning(finalName, finalEmoji, amount, date)
+                showAddEarningDialog = false
+                if (pendingEndShiftAfterEarning) {
+                    pendingEndShiftAfterEarning = false
+                    showEndShiftDialog = true
+                }
+            }
+        )
+    }
+
+    // 3. Advertencia cuando no hay ganancias registradas (se muestra de inmediato al dar clic en Finalizar)
+    if (showNoEarningsConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                showNoEarningsConfirm = false
+                pendingEndShiftAfterEarning = false
+            },
+            icon = { Text("⚠️", fontSize = 32.sp) },
+            title = {
+                Text(
+                    text = "Sin Ganancias Registradas",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = OnSurface,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Text(
+                    text = "Este es un recorrido de trabajo pero no has registrado ninguna ganancia.\n\n¿Deseas agregar una ganancia o finalizar el recorrido sin ingresos?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OnSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            },
+            confirmButton = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            showNoEarningsConfirm = false
+                            pendingEndShiftAfterEarning = true
+                            showAddEarningDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                    ) {
+                        Text("➕ Agregar Ganancia", fontWeight = FontWeight.Bold, color = OnPrimary)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            showNoEarningsConfirm = false
+                            pendingEndShiftAfterEarning = false
+                            showEndShiftDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Finalizar Sin Ganancias", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                    }
+
+                    TextButton(
+                        onClick = {
+                            showNoEarningsConfirm = false
+                            pendingEndShiftAfterEarning = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Volver", color = OnSurfaceVariant)
+                    }
+                }
+            },
+            dismissButton = null,
+            containerColor = Color(0xFF131B2E),
+            shape = RoundedCornerShape(24.dp)
+        )
+    }
+
+    // 4. Diálogo Finalizar Turno (Odómetro final obligatorio)
+    if (showEndShiftDialog) {
+        val shift = uiState.activeShift
+        val initOd = shift?.initialOdometer ?: 0
+        var finalOdText by remember { mutableStateOf("") }
+        val finalOd = finalOdText.toIntOrNull() ?: 0
+        val diffKm = finalOd - initOd
+        val isExaggerated = diffKm > 1000 || finalOd > 1_500_000
+        val isOdValid = finalOd >= initOd && !isExaggerated
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
         ModalBottomSheet(
-            onDismissRequest = { showAddEarningDialog = false },
+            onDismissRequest = { showEndShiftDialog = false },
             sheetState = sheetState
         ) {
             Column(
@@ -728,226 +1001,95 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "💰 Registrar Ganancia",
+                    text = "🏁 Finalizar Recorrido",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Selecciona la aplicación o medio de pago:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = OnSurfaceVariant
+                    text = "Para cerrar tu recorrido, ingresa el odómetro final de tu vehículo:",
+                    style = MaterialTheme.typography.bodyMedium
                 )
 
-                // Grid de Apps de Transporte
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TRANSPORT_APPS.chunked(3).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { app ->
-                                val isSelected = selectedApp?.name == app.name
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) PrimaryContainer.copy(alpha = 0.3f) else SurfaceContainerHigh,
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        width = if (isSelected) 1.5.dp else 0.dp,
-                                        color = if (isSelected) Primary else Color.Transparent
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { selectedApp = app }
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        if (app.drawableRes != null) {
-                                            Image(
-                                                painter = painterResource(id = app.drawableRes),
-                                                contentDescription = app.name,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        } else {
-                                            Text(app.emoji, fontSize = 20.sp)
-                                        }
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            text = app.name,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) Primary else OnSurface
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
                 OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it },
-                    label = { Text("Monto de la carrera / ganancia") },
-                    prefix = { Text("$ ") },
+                    value = finalOdText,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) finalOdText = it },
+                    label = { Text("Odómetro final (km)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     visualTransformation = ThousandSeparatorVisualTransformation(),
+                    isError = finalOdText.isNotBlank() && !isOdValid,
+                    supportingText = {
+                        if (finalOdText.isNotBlank() && finalOd < initOd) {
+                            Text("Debe ser mayor o igual al inicial (${currencyFmt.format(initOd)} km)", color = MaterialTheme.colorScheme.error)
+                        } else if (finalOdText.isNotBlank() && isExaggerated) {
+                            Text("⚠️ Son +${currencyFmt.format(diffKm)} km recorridos. Por favor verifica si escribiste un número de más.", color = MaterialTheme.colorScheme.error)
+                        } else {
+                            Text("Odómetro inicial: ${currencyFmt.format(initOd)} km")
+                        }
+                    },
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = { showAddEarningDialog = false }) {
-                        Text("Cancelar")
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val amount = amountText.replace(Regex("[^\\d]"), "").toDoubleOrNull() ?: 0.0
-                            val app = selectedApp
-                            if (amount > 0.0 && app != null) {
-                                viewModel.addEarning(app.name, app.emoji, amount)
-                                showAddEarningDialog = false
-                            }
-                        },
-                        enabled = (amountText.replace(Regex("[^\\d]"), "").toDoubleOrNull() ?: 0.0) > 0.0
-                    ) {
-                        Text("Guardar")
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. Diálogo Finalizar Turno (Odómetro final obligatorio)
-    if (showEndShiftDialog) {
-        val shift = uiState.activeShift
-        val initOd = shift?.initialOdometer ?: 0
-        var finalOdText by remember { mutableStateOf("") }
-        val finalOd = finalOdText.toIntOrNull() ?: 0
-        val isOdValid = finalOd >= initOd
-        var showNoEarningsConfirm by remember { mutableStateOf(false) }
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-        if (showNoEarningsConfirm) {
-            AlertDialog(
-                onDismissRequest = { showNoEarningsConfirm = false },
-                title = { Text("⚠️ Sin Ganancias") },
-                text = { Text("No has registrado ninguna ganancia en este turno.\n\n¿Estás seguro que deseas finalizarlo de todos modos?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            viewModel.endShift(finalOd)
-                            showNoEarningsConfirm = false
-                            showEndShiftDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Cerrar sin ganancias") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { 
-                        showNoEarningsConfirm = false 
-                    }) { Text("Atrás") }
-                }
-            )
-        } else {
-            ModalBottomSheet(
-                onDismissRequest = { showEndShiftDialog = false },
-                sheetState = sheetState
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .padding(bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "🏁 Finalizar Turno",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Para cerrar tu turno de trabajo, ingresa el odómetro final de tu vehículo:",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    OutlinedTextField(
-                        value = finalOdText,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) finalOdText = it },
-                        label = { Text("Odómetro final (km)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = ThousandSeparatorVisualTransformation(),
-                        isError = finalOdText.isNotBlank() && !isOdValid,
-                        supportingText = {
-                            if (finalOdText.isNotBlank() && !isOdValid) {
-                                Text("Debe ser mayor o igual al inicial (${currencyFmt.format(initOd)} km)")
-                            } else {
-                                Text("Odómetro inicial: ${currencyFmt.format(initOd)} km")
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
+                if (isOdValid && finalOd > 0) {
+                    val realKm = finalOd - initOd
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = SecondaryContainer.copy(alpha = 0.3f),
                         modifier = Modifier.fillMaxWidth()
-                    )
-
-                    if (isOdValid && finalOd > 0) {
-                        val realKm = finalOd - initOd
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = SecondaryContainer.copy(alpha = 0.3f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "RESUMEN DEL TURNO",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Secondary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "· Distancia real: $realKm km",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Text(
-                                    text = "· Tiempo activo: ${formatMs(uiState.shiftElapsedMs)}",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "RESUMEN DEL RECORRIDO",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Secondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "· Distancia real: $realKm km",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = "· Tiempo activo: ${formatMs(uiState.shiftElapsedMs)}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            if (shift?.type == ShiftType.WORK) {
                                 Text(
                                     text = "· Ganancia neta: $ ${currencyFmt.format(uiState.shiftTotalEarnings.toLong())}",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.Bold
                                 )
+                            } else {
+                                Text(
+                                    text = "· Tipo: 🏠 Personal / Particular",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Primary
+                                )
                             }
                         }
                     }
+                }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { showEndShiftDialog = false }) {
+                        Text("Cancelar")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (isOdValid && finalOd > 0) {
+                                viewModel.endShift(finalOd)
+                                showEndShiftDialog = false
+                            }
+                        },
+                        enabled = isOdValid && finalOd > 0,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
-                        TextButton(onClick = { showEndShiftDialog = false }) {
-                            Text("Cancelar")
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                if (isOdValid && finalOd > 0) {
-                                    if (shift?.earnings.isNullOrEmpty()) {
-                                        showNoEarningsConfirm = true
-                                    } else {
-                                        viewModel.endShift(finalOd)
-                                        showEndShiftDialog = false
-                                    }
-                                }
-                            },
-                            enabled = isOdValid && finalOd > 0,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text("Cerrar Turno")
-                        }
+                        Text("Finalizar Recorrido")
                     }
                 }
             }

@@ -2,6 +2,7 @@ package co.samidev.kilometrix.data.repository
 
 import co.samidev.kilometrix.domain.model.ShiftEarning
 import co.samidev.kilometrix.domain.model.ShiftStatus
+import co.samidev.kilometrix.domain.model.ShiftType
 import co.samidev.kilometrix.domain.model.WorkShift
 import co.samidev.kilometrix.domain.repository.WorkShiftRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -68,9 +69,29 @@ class WorkShiftRepositoryImpl @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    override fun getShiftsForVehicle(vehicleId: String): Flow<List<WorkShift>> = callbackFlow {
+        val userId = auth.currentUser?.uid
+        if (userId == null) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val listener = shiftsCol(userId)
+            .whereEqualTo("vehicleId", vehicleId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) { close(error); return@addSnapshotListener }
+                val shifts = snapshot?.documents
+                    ?.mapNotNull { it.toWorkShift() }
+                    ?.sortedByDescending { it.startTime }
+                    ?: emptyList()
+                trySend(shifts)
+            }
+        awaitClose { listener.remove() }
+    }
+
     // ── Write operations ───────────────────────────────────────────────────────
 
-    override suspend fun startShift(vehicleId: String, initialOdometer: Int): Result<String> {
+    override suspend fun startShift(vehicleId: String, initialOdometer: Int, type: ShiftType): Result<String> {
         val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
         return try {
             val docRef = shiftsCol(userId).document()
@@ -84,9 +105,19 @@ class WorkShiftRepositoryImpl @Inject constructor(
                 "pausedDurationMs" to 0L,
                 "status" to ShiftStatus.ACTIVE.name,
                 "pauseStartTime" to null,
-                "earnings" to emptyList<Any>()
+                "earnings" to emptyList<Any>(),
+                "type" to type.name
             )
             docRef.set(map).await()
+
+            // Actualizar odómetro del vehículo al iniciar recorrido si initialOdometer > 0
+            if (initialOdometer > 0) {
+                db.collection("users").document(userId)
+                    .collection("vehicles").document(vehicleId)
+                    .update("odometer", initialOdometer)
+                    .await()
+            }
+
             Result.success(docRef.id)
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -125,13 +156,26 @@ class WorkShiftRepositoryImpl @Inject constructor(
     override suspend fun endShift(shiftId: String, finalOdometer: Int): Result<Unit> {
         val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
         return try {
-            shiftsCol(userId).document(shiftId).update(
+            val docRef = shiftsCol(userId).document(shiftId)
+            val doc = docRef.get().await()
+            val vehicleId = doc.getString("vehicleId")
+
+            docRef.update(
                 mapOf(
                     "status" to ShiftStatus.ENDED.name,
                     "endTime" to System.currentTimeMillis(),
                     "finalOdometer" to finalOdometer
                 )
             ).await()
+
+            // Actualizar odómetro máster del vehículo al finalizar recorrido si finalOdometer > 0
+            if (vehicleId != null && finalOdometer > 0) {
+                db.collection("users").document(userId)
+                    .collection("vehicles").document(vehicleId)
+                    .update("odometer", finalOdometer)
+                    .await()
+            }
+
             Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -149,6 +193,47 @@ class WorkShiftRepositoryImpl @Inject constructor(
             shiftsCol(userId).document(shiftId)
                 .update("earnings", FieldValue.arrayUnion(earningMap))
                 .await()
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+    
+    override suspend fun addStandaloneEarning(vehicleId: String, earning: ShiftEarning): Result<Unit> {
+        val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
+        return try {
+            val shiftId = java.util.UUID.randomUUID().toString()
+            val shift = WorkShift(
+                id = shiftId,
+                vehicleId = vehicleId,
+                startTime = earning.registeredAt,
+                endTime = earning.registeredAt,
+                initialOdometer = 0,
+                finalOdometer = 0,
+                status = ShiftStatus.ENDED,
+                earnings = listOf(earning),
+                pauseStartTime = null,
+                pausedDurationMs = 0L
+            )
+            val shiftMap = mapOf(
+                "id" to shift.id,
+                "vehicleId" to shift.vehicleId,
+                "startTime" to shift.startTime,
+                "endTime" to shift.endTime,
+                "initialOdometer" to shift.initialOdometer,
+                "finalOdometer" to shift.finalOdometer,
+                "status" to shift.status.name,
+                "pauseStartTime" to shift.pauseStartTime,
+                "pausedDurationMs" to shift.pausedDurationMs,
+                "earnings" to shift.earnings.map { e ->
+                    mapOf(
+                        "id" to e.id,
+                        "appName" to e.appName,
+                        "appEmoji" to e.appEmoji,
+                        "amount" to e.amount,
+                        "registeredAt" to e.registeredAt
+                    )
+                }
+            )
+            shiftsCol(userId).document(shiftId).set(shiftMap).await()
             Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -183,7 +268,10 @@ private fun DocumentSnapshot.toWorkShift(): WorkShift? {
                 ShiftStatus.valueOf(getString("status") ?: "ACTIVE")
             } catch (_: IllegalArgumentException) { ShiftStatus.ACTIVE },
             pauseStartTime = getLong("pauseStartTime"),
-            earnings = earningsList
+            earnings = earningsList,
+            type = try {
+                ShiftType.valueOf(getString("type") ?: "WORK")
+            } catch (_: IllegalArgumentException) { ShiftType.WORK }
         )
     } catch (_: Exception) { null }
 }

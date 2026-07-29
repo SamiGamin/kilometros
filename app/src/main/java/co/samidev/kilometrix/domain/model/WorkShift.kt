@@ -17,10 +17,13 @@ data class WorkShift(
     val pausedDurationMs: Long = 0L,        // Tiempo total acumulado en pausa (ms)
     val status: ShiftStatus = ShiftStatus.ACTIVE,
     val pauseStartTime: Long? = null,       // Tiempo en que se pausó la última vez
-    val earnings: List<ShiftEarning> = emptyList()
+    val earnings: List<ShiftEarning> = emptyList(),
+    val type: ShiftType = ShiftType.WORK
 )
 
 enum class ShiftStatus { ACTIVE, PAUSED, ENDED }
+
+enum class ShiftType { WORK, PERSONAL }
 
 /**
  * Registro de ganancia por app de transporte durante un turno.

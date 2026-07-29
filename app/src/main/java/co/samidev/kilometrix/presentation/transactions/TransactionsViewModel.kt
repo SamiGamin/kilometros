@@ -2,15 +2,21 @@ package co.samidev.kilometrix.presentation.transactions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.samidev.kilometrix.domain.model.ExpenseType
 import co.samidev.kilometrix.domain.model.FuelEfficiencySummary
 import co.samidev.kilometrix.domain.model.FuelUnit
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.domain.model.VehicleExpense
+import org.json.JSONArray
+import co.samidev.kilometrix.domain.model.WorkShift
 import co.samidev.kilometrix.domain.repository.ActiveVehicleRepository
+import co.samidev.kilometrix.domain.repository.ExpenseRepository
+import co.samidev.kilometrix.domain.repository.WorkShiftRepository
 import co.samidev.kilometrix.domain.usecase.AddExpenseUseCase
 import co.samidev.kilometrix.domain.usecase.CalculateFuelEfficiencyUseCase
 import co.samidev.kilometrix.domain.usecase.GetExpensesUseCase
 import co.samidev.kilometrix.domain.usecase.GetVehiclesUseCase
+import co.samidev.kilometrix.domain.usecase.RecalculateFuelChainUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -22,6 +28,7 @@ data class TransactionsUiState(
     val vehicles: List<Vehicle> = emptyList(),
     val selectedVehicle: Vehicle? = null,
     val fuelSummary: FuelEfficiencySummary? = null,
+    val hasActiveShift: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
     val actionSuccess: Boolean = false
@@ -33,11 +40,18 @@ class TransactionsViewModel @Inject constructor(
     getVehiclesUseCase: GetVehiclesUseCase,
     private val activeVehicleRepository: ActiveVehicleRepository,
     private val getExpensesUseCase: GetExpensesUseCase,
+    private val expenseRepository: ExpenseRepository,
     private val addExpenseUseCase: AddExpenseUseCase,
-    private val calculateFuelEfficiencyUseCase: CalculateFuelEfficiencyUseCase
+    private val calculateFuelEfficiencyUseCase: CalculateFuelEfficiencyUseCase,
+    private val workShiftRepository: WorkShiftRepository,
+    private val recalculateFuelChainUseCase: RecalculateFuelChainUseCase
 ) : ViewModel() {
 
-    // ── Vehicles & selection ───────────────────────────────────────────────────
+    val hasActiveShift: StateFlow<Boolean> = workShiftRepository.getAnyActiveShift()
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    // ── Vehicles & selection ──────────────────────────────────────────────────—
 
     val vehicles: StateFlow<List<Vehicle>> = getVehiclesUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -52,7 +66,16 @@ class TransactionsViewModel @Inject constructor(
     val expenses: StateFlow<List<VehicleExpense>> = selectedVehicle
         .flatMapLatest { vehicle ->
             if (vehicle == null) flowOf(emptyList())
-            else getExpensesUseCase(vehicle.id)
+            else getExpensesUseCase(vehicle.id).map { list -> recalculateFuelChainUseCase(list) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ── Shifts for selected vehicle ────────────────────────────────────────────
+
+    val shifts: StateFlow<List<WorkShift>> = selectedVehicle
+        .flatMapLatest { vehicle ->
+            if (vehicle == null) flowOf(emptyList())
+            else workShiftRepository.getShiftsForVehicle(vehicle.id)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -61,7 +84,7 @@ class TransactionsViewModel @Inject constructor(
     val fuelHistory: StateFlow<List<VehicleExpense>> = selectedVehicle
         .flatMapLatest { vehicle ->
             if (vehicle == null) flowOf(emptyList())
-            else getExpensesUseCase.fuelHistory(vehicle.id)
+            else getExpensesUseCase.fuelHistory(vehicle.id).map { list -> recalculateFuelChainUseCase(list) }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -70,23 +93,117 @@ class TransactionsViewModel @Inject constructor(
         else calculateFuelEfficiencyUseCase(history)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // ── Action state ───────────────────────────────────────────────────────────
+    // ── Actions ───────────────────────────────────────────────────────────────
 
     private val _actionState = MutableStateFlow<ActionState>(ActionState.Idle)
-    val actionState: StateFlow<ActionState> = _actionState
+    val actionState: StateFlow<ActionState> = _actionState.asStateFlow()
+
+    fun addExpense(expense: VehicleExpense) {
+        viewModelScope.launch {
+            _actionState.value = ActionState.Loading
+            addExpenseUseCase(expense)
+                .onSuccess { _actionState.value = ActionState.Success }
+                .onFailure { e -> _actionState.value = ActionState.Error(e.message ?: "Error al guardar el gasto") }
+        }
+    }
+
+    fun deleteExpense(expenseId: String) {
+        viewModelScope.launch {
+            _actionState.value = ActionState.Loading
+            expenseRepository.deleteExpense(expenseId)
+                .onSuccess { _actionState.value = ActionState.Success }
+                .onFailure { e -> _actionState.value = ActionState.Error(e.message ?: "Error al eliminar el gasto") }
+        }
+    }
+
+    fun importHistoricalFromAsset(context: android.content.Context) {
+        val vehicle = selectedVehicle.value ?: return
+        viewModelScope.launch {
+            _actionState.value = ActionState.Loading
+            try {
+                val jsonString = context.assets.open("mis_ahorros_procesado_firestore.json")
+                    .bufferedReader()
+                    .use { it.readText() }
+
+                val array = JSONArray(jsonString)
+                val list = mutableListOf<VehicleExpense>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val fuelDetailsObj = obj.optJSONObject("fuelDetails")
+                    val gal = fuelDetailsObj?.optDouble("gallons", 0.0) ?: obj.optDouble("gallons", 0.0)
+                    val od = fuelDetailsObj?.optInt("odometerAtRefuel", 0) ?: obj.optInt("odometerAtRefuel", 0)
+                    val prevOd = fuelDetailsObj?.optInt("previousOdometer", 0) ?: obj.optInt("previousOdometer", 0)
+                    val kmTrav = fuelDetailsObj?.optInt("kmTraveled", 0) ?: obj.optInt("kmTraveled", 0)
+                    val pricePerGal = fuelDetailsObj?.optDouble("pricePerGallon", 0.0) ?: obj.optDouble("pricePerGallon", 0.0)
+                    val kmPerGal = fuelDetailsObj?.optDouble("kmPerGallon", 0.0) ?: obj.optDouble("kmPerGallon", 0.0)
+                    val isFull = fuelDetailsObj?.optBoolean("isFullTank", false) ?: obj.optBoolean("isFullTank", false)
+
+                    val fuelDetails = co.samidev.kilometrix.domain.model.FuelDetails(
+                        gallons = gal,
+                        liters = gal * 3.78541,
+                        pricePerGallon = pricePerGal,
+                        pricePerLiter = if (pricePerGal > 0) pricePerGal / 3.78541 else 0.0,
+                        enteredUnit = FuelUnit.GALLON,
+                        enteredQuantity = gal,
+                        pricePerEnteredUnit = pricePerGal,
+                        odometerAtRefuel = od,
+                        previousOdometer = prevOd,
+                        kmTraveled = kmTrav,
+                        kmPerGallon = kmPerGal,
+                        kmPerLiter = if (kmPerGal > 0) kmPerGal / 3.78541 else 0.0,
+                        isFullTank = isFull,
+                        isPartial = !isFull,
+                        isReserve = false
+                    )
+
+                    val exp = VehicleExpense(
+                        id = obj.optString("id", ""),
+                        vehicleId = vehicle.id,
+                        type = ExpenseType.FUEL,
+                        amount = obj.optDouble("amount", 0.0),
+                        date = obj.optLong("date", System.currentTimeMillis()),
+                        notes = obj.optString("notes", ""),
+                        fuelDetails = fuelDetails
+                    )
+                    list.add(exp)
+                }
+
+                val result = expenseRepository.importExpensesBatch(vehicle.id, list)
+                if (result.isSuccess) {
+                    _actionState.value = ActionState.Success
+                } else {
+                    _actionState.value = ActionState.Error(result.exceptionOrNull()?.message ?: "Error al importar datos")
+                }
+            } catch (e: Exception) {
+                _actionState.value = ActionState.Error("Error al importar historial: ${e.message}")
+            }
+        }
+    }
 
     // ── Public actions ─────────────────────────────────────────────────────────
 
     fun selectVehicle(vehicleId: String) {
         activeVehicleRepository.setActiveVehicleId(vehicleId)
     }
-
-    fun addExpense(expense: VehicleExpense) {
+    
+    fun addStandaloneEarning(vehicleId: String?, appName: String, appEmoji: String, amount: Double, isBonus: Boolean, date: Long) {
+        if (vehicleId == null) {
+            _actionState.value = ActionState.Error("No hay vehículo activo seleccionado")
+            return
+        }
         viewModelScope.launch {
             _actionState.value = ActionState.Loading
-            val result = addExpenseUseCase(expense)
+            val finalName = if (isBonus) "$appName (Bono)" else appName
+            val finalEmoji = if (isBonus) "🎁" else appEmoji
+            val earning = co.samidev.kilometrix.domain.model.ShiftEarning(
+                appName = finalName,
+                appEmoji = finalEmoji,
+                amount = amount,
+                registeredAt = date
+            )
+            val result = workShiftRepository.addStandaloneEarning(vehicleId, earning)
             _actionState.value = if (result.isSuccess) ActionState.Success
-            else ActionState.Error(result.exceptionOrNull()?.message ?: "Error al guardar gasto")
+            else ActionState.Error(result.exceptionOrNull()?.message ?: "Error al guardar ganancia")
         }
     }
 

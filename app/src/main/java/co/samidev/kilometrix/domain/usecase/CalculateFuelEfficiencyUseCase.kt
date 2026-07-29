@@ -51,7 +51,7 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
         // ── 0. Filtrado y ordenamiento ─────────────────────────────────────────
         val fuelRecords: List<FuelDetails> = fuelExpenses
             .filter { it.type == ExpenseType.FUEL && it.fuelDetails != null }
-            .sortedBy { it.fuelDetails!!.odometerAtRefuel }
+            .sortedBy { it.date }
             .mapNotNull { it.fuelDetails }
 
         if (fuelRecords.isEmpty()) return FuelEfficiencySummary()
@@ -80,6 +80,7 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
         // ── 3. EVALUACIÓN DE FASE ─────────────────────────────────────────────
         return when {
             calibrationHits.size < 2 -> buildPhase1(
+                fuelRecords = fuelRecords,
                 totalSpentCash = totalSpentCash,
                 totalGallonsPurchased = totalGallonsPurchased,
                 totalLiters = totalLiters,
@@ -101,25 +102,40 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // FASE 1 — Cold Start: Solo Flujo de Caja
+    // FASE 1 — Cold Start: Solo Flujo de Caja (con promedio de rendimiento real si existe)
     // ─────────────────────────────────────────────────────────────────────────
 
     private fun buildPhase1(
+        fuelRecords: List<FuelDetails>,
         totalSpentCash: Double,
         totalGallonsPurchased: Double,
         totalLiters: Double,
         totalKmTraveled: Int,
         fillUpsCount: Int
     ): FuelEfficiencySummary {
-        val costPerKm = if (totalKmTraveled > 0) totalSpentCash / totalKmTraveled else 0.0
+        val validKmPerGallonList = fuelRecords.map { it.kmPerGallon }.filter { it >= 5.0 && it <= 120.0 }
+
+        val overallKmPerGallon = if (validKmPerGallonList.isNotEmpty()) {
+            validKmPerGallonList.average()
+        } else if (totalGallonsPurchased > 0 && totalKmTraveled > 0) {
+            totalKmTraveled.toDouble() / totalGallonsPurchased
+        } else null
+
+        val overallKmPerLiter = overallKmPerGallon?.let { it / LITERS_PER_GALLON }
+
+        val avgPricePerGal = if (totalGallonsPurchased > 0) totalSpentCash / totalGallonsPurchased else 0.0
+        val costPerKm = if (overallKmPerGallon != null && overallKmPerGallon > 0) {
+            avgPricePerGal / overallKmPerGallon
+        } else if (totalKmTraveled > 0) totalSpentCash / totalKmTraveled else 0.0
+
         return FuelEfficiencySummary(
             // Flujo de caja
             totalSpentCash = totalSpentCash,
             totalGallonsPurchased = totalGallonsPurchased,
             totalKmTraveled = totalKmTraveled,
-            // Eficiencia: null hasta calibración
-            kmPerGallonAverage = null,
-            kmPerLiterAverage = null,
+            // Eficiencia: promedio global si hay datos de km y galones válidos
+            kmPerGallonAverage = overallKmPerGallon,
+            kmPerLiterAverage = overallKmPerLiter,
             costPerKmReal = costPerKm,
             // Tanque Virtual: no disponible
             virtualTankRemainingGallons = 0.0,
@@ -130,8 +146,8 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
             dataMaturityPhase = DataMaturityPhase.PHASE_1_CASH_FLOW,
             fillUpsCount = fillUpsCount,
             // Aliases retro-compat
-            averageKmPerGallon = 0.0,
-            averageKmPerLiter = 0.0,
+            averageKmPerGallon = overallKmPerGallon ?: 0.0,
+            averageKmPerLiter = overallKmPerLiter ?: 0.0,
             totalGallons = totalGallonsPurchased,
             totalLiters = totalLiters,
             totalFuelCost = totalSpentCash,
@@ -169,15 +185,19 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
             val idxA = calibrationHits[i]
             val idxB = calibrationHits[i + 1]
 
-            val odA = fuelRecords[idxA].odometerAtRefuel
+            val recA = fuelRecords[idxA]
+            val odA = recA.odometerAtRefuel
             val odB = fuelRecords[idxB].odometerAtRefuel
             val deltaKm = odB - odA
 
-            // Galones acumulados entre A (exclusive) y B (inclusive)
-            // El tanqueo del hito A ya alimentó el ciclo anterior, no este.
-            val gallonsInCycle = fuelRecords
-                .subList(idxA + 1, idxB + 1)
-                .sumOf { it.gallons }
+            // 💡 FIX: Si el hito A arrancó en reserva (isReserve == true), los galones consumidos
+            // para recorrer deltaKm fueron los comprados EN A (y parciales hasta B-1).
+            // Si A fue lleno a lleno (isFullTank), los galones quemados fueron los comprados de A+1 a B.
+            val gallonsInCycle = if (recA.isReserve) {
+                fuelRecords.subList(idxA, idxB).sumOf { it.gallons }
+            } else {
+                fuelRecords.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
+            }
 
             if (deltaKm > 0 && gallonsInCycle > 0.0) {
                 val rCal = deltaKm.toDouble() / gallonsInCycle
@@ -188,7 +208,7 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
         // Si no se pudo formar ningún ciclo válido, fallback a Fase 1
         if (cycles.isEmpty()) {
             return buildPhase1(
-                totalSpentCash, totalGallonsPurchased, totalLiters, totalKmTraveled, fillUpsCount
+                fuelRecords, totalSpentCash, totalGallonsPurchased, totalLiters, totalKmTraveled, fillUpsCount
             )
         }
 

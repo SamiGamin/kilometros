@@ -19,4 +19,7 @@ interface ExpenseRepository {
 
     /** Elimina un gasto por ID. */
     suspend fun deleteExpense(expenseId: String): Result<Unit>
+
+    /** Importa un lote de gastos en batch a Firestore. */
+    suspend fun importExpensesBatch(vehicleId: String, expenses: List<VehicleExpense>): Result<Int>
 }

@@ -90,25 +90,14 @@ fun VehicleScreen() {
                     color = OnSurfaceVariant
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { viewModel.seedDemoVehicles() },
-                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceContainerLow),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text("🧪 Cargar 4 Demo", style = MaterialTheme.typography.labelSmall, color = Secondary)
-                }
-
-                IconButton(
-                    onClick = { showAddDialog = true },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Primary)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Agregar vehículo", tint = OnPrimary)
-                }
+            IconButton(
+                onClick = { showAddDialog = true },
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Primary)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Agregar vehículo", tint = OnPrimary)
             }
         }
 
@@ -125,22 +114,14 @@ fun VehicleScreen() {
             ) {
                 Text("🚗", style = MaterialTheme.typography.displayLarge)
                 Text("No tienes vehículos registrados", style = MaterialTheme.typography.titleMedium, color = OnSurface)
-                Text("Puedes agregar un vehículo manualmente o cargar 4 vehículos de prueba.", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant, textAlign = TextAlign.Center)
+                Text("Agrega tu vehículo para comenzar a monitorear recorridos y gastos.", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant, textAlign = TextAlign.Center)
                 
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
-                        onClick = { showAddDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Agregar Vehículo", color = Color.White)
-                    }
-                    OutlinedButton(
-                        onClick = { viewModel.seedDemoVehicles() },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("🧪 Cargar 4 Demo", color = Secondary)
-                    }
+                Button(
+                    onClick = { showAddDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Agregar Vehículo", color = Color.White)
                 }
             }
         } else {
@@ -164,7 +145,7 @@ fun VehicleScreen() {
                             )
                             .clickable {
                                 if (hasActiveShift && vehicle.id != activeVehicleId) {
-                                    android.widget.Toast.makeText(context, "Debes finalizar el turno actual antes de cambiar de vehículo.", android.widget.Toast.LENGTH_SHORT).show()
+                                    android.widget.Toast.makeText(context, "Debes finalizar el recorrido actual antes de cambiar de vehículo.", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
                                     selectedVehicle = vehicle
                                     viewModel.setActiveVehicle(vehicle.id)
@@ -272,7 +253,13 @@ fun VehicleScreen() {
                                 }
                             } else {
                                 OutlinedButton(
-                                    onClick = { viewModel.setActiveVehicle(vehicle.id) },
+                                    onClick = { 
+                                        if (hasActiveShift && vehicle.id != activeVehicleId) {
+                                            android.widget.Toast.makeText(context, "Debes finalizar el recorrido actual antes de cambiar de vehículo.", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            viewModel.setActiveVehicle(vehicle.id) 
+                                        }
+                                    },
                                     shape = RoundedCornerShape(8.dp),
                                     border = BorderStroke(1.dp, Primary.copy(alpha = 0.5f)),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
