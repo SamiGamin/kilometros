@@ -1,4 +1,5 @@
 import java.util.Base64
+import java.security.KeyStore
 
 plugins {
     alias(libs.plugins.android.application)
@@ -17,7 +18,7 @@ android {
         minSdk = 30
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,9 +34,28 @@ android {
             }
             if (keystoreFile.exists()) {
                 storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
-                keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+                val sPass = System.getenv("KEYSTORE_PASSWORD")?.trim()?.ifEmpty { null } ?: "android"
+                val kPass = System.getenv("KEY_PASSWORD")?.trim()?.ifEmpty { null } ?: sPass
+
+                var resolvedAlias = System.getenv("KEY_ALIAS")?.trim()?.ifEmpty { null }
+                try {
+                    val ks = KeyStore.getInstance(KeyStore.getDefaultType())
+                    keystoreFile.inputStream().use { stream ->
+                        ks.load(stream, sPass.toCharArray())
+                    }
+                    if (resolvedAlias == null || !ks.containsAlias(resolvedAlias)) {
+                        val aliases = ks.aliases()
+                        if (aliases.hasMoreElements()) {
+                            resolvedAlias = aliases.nextElement()
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Fallback if inspection fails
+                }
+
+                storePassword = sPass
+                keyAlias = resolvedAlias ?: "key0"
+                keyPassword = kPass
             }
         }
     }
