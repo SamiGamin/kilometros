@@ -51,7 +51,9 @@ class AppUpdateRepositoryImpl @Inject constructor() : AppUpdateRepository {
                 }
             }
 
-            val isNewer = isVersionHigher(cleanCurrentVersion, latestVersion)
+            val isNewer = isVersionHigher(cleanCurrentVersion, rawTagName.removePrefix("v").removePrefix("V").trim())
+
+            android.util.Log.d("AppUpdate", "Current version: '$cleanCurrentVersion', Latest tag: '$rawTagName', IsNewer: $isNewer, ApkUrl: '$apkUrl'")
 
             Result.success(
                 AppUpdateInfo(
@@ -63,14 +65,19 @@ class AppUpdateRepositoryImpl @Inject constructor() : AppUpdateRepository {
                 )
             )
         } catch (e: Exception) {
+            android.util.Log.e("AppUpdate", "Error checking update", e)
             Result.failure(e)
         }
     }
 
     private fun isVersionHigher(current: String, latest: String): Boolean {
         if (current.isBlank() || latest.isBlank()) return false
-        val currentParts = current.split("-").first().split(".").mapNotNull { it.toIntOrNull() }
-        val latestParts = latest.split("-").first().split(".").mapNotNull { it.toIntOrNull() }
+
+        val currentBase = current.split("-").first().trim()
+        val latestBase = latest.split("-").first().trim()
+
+        val currentParts = currentBase.split(".").mapNotNull { it.toIntOrNull() }
+        val latestParts = latestBase.split(".").mapNotNull { it.toIntOrNull() }
 
         val maxLength = maxOf(currentParts.size, latestParts.size)
         for (i in 0 until maxLength) {
@@ -79,6 +86,14 @@ class AppUpdateRepositoryImpl @Inject constructor() : AppUpdateRepository {
             if (l > c) return true
             if (c > l) return false
         }
+
+        // If base version numbers are equal (e.g. 1.0.2 == 1.0.2), check build numbers (e.g. build7 vs build0)
+        val buildRegex = "build(\\d+)".toRegex(RegexOption.IGNORE_CASE)
+        val currentBuild = buildRegex.find(current)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val latestBuild = buildRegex.find(latest)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+        if (latestBuild > currentBuild) return true
+
         return false
     }
 }
