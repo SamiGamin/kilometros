@@ -6,11 +6,11 @@ on:
       - main
       - master
     tags:
-      - 'v*' # También se activa si creas un tag como v1.0.1
+      - 'v*'
   workflow_dispatch:
 
 permissions:
-  contents: write # Permiso necesario para crear Tags y Releases
+  contents: write
 
 jobs:
   build-and-release:
@@ -35,30 +35,21 @@ jobs:
       - name: 4. Permisos a gradlew
         run: chmod +x gradlew
 
-      - name: 4b. Restaurar google-services.json desde Secret
+      - name: 5. Restaurar google-services.json desde Secret
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
 
-      - name: 5. Compilar APK (Release sin firmar)
+      - name: 6. Compilar y Firmar APK (Release)
         run: ./gradlew assembleRelease --no-daemon
-
-      - name: 6. Firmar APK con tu Keystore de PC
-        id: sign_apk
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-          buildToolsVersion: "34.0.0"
         env:
-          BUILD_TOOLS_VERSION: "34.0.0"
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: 7. Obtener Versión para el Tag
         id: get_version
         run: |
-          # Extrae la versión de versionName en build.gradle.kts o usa la fecha/run
           VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2 || echo "1.0.0")
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
           echo "TAG_NAME=v$VERSION-build${{ github.run_number }}" >> $GITHUB_ENV
@@ -73,7 +64,7 @@ jobs:
             - **Versión:** `${{ env.VERSION }}`
             - **Commit:** `${{ github.sha }}`
             - APK firmado listo para instalar/actualizar sin conflictos.
-          files: ${{ steps.sign_apk.outputs.signedReleaseFile }}
+          files: app/build/outputs/apk/release/app-release.apk
           draft: false
           prerelease: false
         env:
