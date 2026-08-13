@@ -6,5 +6,6 @@ data class UserProfile(
     val email: String = "",
     val city: String = "",
     val platforms: List<String> = emptyList(),
+    val maintenanceReservePercent: Int = 10,
     val isVerified: Boolean = false
 )

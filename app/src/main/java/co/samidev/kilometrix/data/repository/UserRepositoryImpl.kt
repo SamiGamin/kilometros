@@ -3,6 +3,7 @@ package co.samidev.kilometrix.data.repository
 import co.samidev.kilometrix.domain.model.UserProfile
 import co.samidev.kilometrix.domain.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +23,31 @@ class UserRepositoryImpl @Inject constructor(
         return try {
             val updates = mapOf(
                 "city" to city,
-                "platforms" to platforms
+                "platforms" to platforms,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            db.collection("users").document(userId)
+                .set(updates, com.google.firebase.firestore.SetOptions.merge()).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateUserProfile(
+        name: String,
+        city: String,
+        platforms: List<String>,
+        maintenanceReservePercent: Int
+    ): Result<Unit> {
+        val userId = auth.currentUser?.uid ?: return Result.failure(Exception("No active user session"))
+        return try {
+            val updates = mapOf(
+                "name" to name,
+                "city" to city,
+                "platforms" to platforms,
+                "maintenanceReservePercent" to maintenanceReservePercent,
+                "updatedAt" to FieldValue.serverTimestamp()
             )
             db.collection("users").document(userId)
                 .set(updates, com.google.firebase.firestore.SetOptions.merge()).await()
@@ -53,6 +78,7 @@ class UserRepositoryImpl @Inject constructor(
                         email = snapshot.getString("email") ?: "",
                         city = snapshot.getString("city") ?: "",
                         platforms = (snapshot.get("platforms") as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList(),
+                        maintenanceReservePercent = (snapshot.getLong("maintenanceReservePercent") ?: 10L).toInt(),
                         isVerified = snapshot.getBoolean("isVerified") ?: false
                     )
                     trySend(profile)
