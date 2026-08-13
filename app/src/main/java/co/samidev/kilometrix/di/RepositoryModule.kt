@@ -51,6 +51,12 @@ abstract class RepositoryModule {
         workShiftRepositoryImpl: co.samidev.kilometrix.data.repository.WorkShiftRepositoryImpl
     ): co.samidev.kilometrix.domain.repository.WorkShiftRepository
 
+    @Binds
+    @Singleton
+    abstract fun bindAppUpdateRepository(
+        appUpdateRepositoryImpl: co.samidev.kilometrix.data.repository.AppUpdateRepositoryImpl
+    ): co.samidev.kilometrix.domain.repository.AppUpdateRepository
+
     companion object {
         @Provides
         @Singleton

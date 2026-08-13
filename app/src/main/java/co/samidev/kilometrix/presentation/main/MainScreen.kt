@@ -41,6 +41,10 @@ import co.samidev.kilometrix.presentation.transactions.TransactionsScreen
 import co.samidev.kilometrix.presentation.transactions.TransactionsViewModel
 import co.samidev.kilometrix.presentation.vehicle.VehicleScreen
 import co.samidev.kilometrix.ui.theme.*
+import co.samidev.kilometrix.presentation.update.AppUpdateUiState
+import co.samidev.kilometrix.presentation.update.AppUpdateViewModel
+import co.samidev.kilometrix.presentation.update.UpdateAvailableDialog
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 
 private enum class Tab(val labelRes: Int, val emoji: String) {
@@ -60,6 +64,21 @@ fun MainScreen(
     var selectedTab by remember { mutableStateOf(Tab.HOME) }
     var showFabSheet by remember { mutableStateOf(false) }
     var fabSheetTab by remember { mutableStateOf(0) } // 0=Gastos, 1=Ganancias
+
+    val context = LocalContext.current
+
+    // Auto-update ViewModel
+    val appUpdateViewModel: AppUpdateViewModel = hiltViewModel()
+    val appUpdateUiState by appUpdateViewModel.uiState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        val currentVersionName = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+        } catch (e: Exception) {
+            "1.0.0"
+        }
+        appUpdateViewModel.checkForUpdates(currentVersionName)
+    }
 
     // ViewModel compartido — instancia única para el sheet global
     val transactionsViewModel: TransactionsViewModel = hiltViewModel()
@@ -246,6 +265,19 @@ fun MainScreen(
             onTabSelected = { selectedTab = it },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+
+        // Update Available Dialog
+        if (appUpdateUiState !is AppUpdateUiState.Idle && appUpdateUiState !is AppUpdateUiState.Checking) {
+            UpdateAvailableDialog(
+                uiState = appUpdateUiState,
+                onConfirmUpdate = { info ->
+                    appUpdateViewModel.startDownloadAndInstall(context, info)
+                },
+                onDismiss = {
+                    appUpdateViewModel.dismissDialog()
+                }
+            )
+        }
     } // end Box
     } // end Scaffold
 }
