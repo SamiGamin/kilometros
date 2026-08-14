@@ -52,13 +52,14 @@ jobs:
         run: |
           VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2 || echo "1.0.0")
           echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          echo "TAG_NAME=v$VERSION-build${{ github.run_number }}" >> $GITHUB_ENV
+          echo "TAG_NAME=v$VERSION" >> $GITHUB_ENV
 
       - name: 8. Crear Tag y GitHub Release Oficial
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
-          name: "KiloMetrix ${{ env.VERSION }} (Build ${{ github.run_number }})"
+          name: "KiloMetrix ${{ env.VERSION }}"
+          make_latest: true
           body: |
             ### 🚀 Nueva versión compilada y firmada
             - **Versión:** `${{ env.VERSION }}`

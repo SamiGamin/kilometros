@@ -13,6 +13,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.samidev.kilometrix.domain.model.AppUpdateInfo
@@ -210,38 +214,49 @@ private fun FormattedMarkdownText(markdownText: String) {
             when {
                 trimmed.startsWith("#") -> {
                     val cleanHeader = trimmed.replace("^#+\\s*".toRegex(), "")
-                        .replace("\\*\\*", "")
-                        .replace("`", "")
                     Text(
-                        text = cleanHeader,
+                        text = parseMarkdownAnnotated(cleanHeader),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = Primary
                     )
                 }
                 trimmed.startsWith("- ") || trimmed.startsWith("* ") -> {
                     val cleanItem = trimmed.substring(2)
-                        .replace("\\*\\*", "")
-                        .replace("`", "")
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.Top
                     ) {
                         Text("•", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = Primary)
                         Text(
-                            text = cleanItem,
+                            text = parseMarkdownAnnotated(cleanItem),
                             style = MaterialTheme.typography.bodySmall,
                             color = OnSurface
                         )
                     }
                 }
                 else -> {
-                    val cleanText = trimmed.replace("\\*\\*", "").replace("`", "")
                     Text(
-                        text = cleanText,
+                        text = parseMarkdownAnnotated(trimmed),
                         style = MaterialTheme.typography.bodySmall,
                         color = OnSurface
                     )
                 }
+            }
+        }
+    }
+}
+
+private fun parseMarkdownAnnotated(input: String): AnnotatedString {
+    val clean = input.replace("`", "")
+    val parts = clean.split("**")
+    return buildAnnotatedString {
+        parts.forEachIndexed { index, part ->
+            if (index % 2 == 1) {
+                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(part)
+                }
+            } else {
+                append(part)
             }
         }
     }

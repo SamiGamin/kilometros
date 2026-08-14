@@ -32,8 +32,8 @@ class AppUpdateRepositoryImpl @Inject constructor() : AppUpdateRepository {
             val json = JSONObject(responseText)
 
             val rawTagName = json.optString("tag_name", "")
-            val latestVersion = rawTagName.removePrefix("v").removePrefix("V").trim()
-            val cleanCurrentVersion = currentVersionName.removePrefix("v").removePrefix("V").trim()
+            val latestVersion = rawTagName.removePrefix("v").removePrefix("V").split("-").first().trim()
+            val cleanCurrentVersion = currentVersionName.removePrefix("v").removePrefix("V").split("-").first().trim()
 
             val releaseNotes = json.optString("body", "Sin detalles del cambio.").trim()
 
