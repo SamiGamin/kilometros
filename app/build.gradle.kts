@@ -26,36 +26,11 @@ android {
     signingConfigs {
         create("release") {
             val keystoreFile = file("release.keystore")
-            val keystoreBase64 = System.getenv("SIGNING_KEYSTORE_BASE64")
-            if (!keystoreBase64.isNullOrEmpty()) {
-                val cleanBase64 = keystoreBase64.replace("\r", "").replace("\n", "").trim()
-                val bytes = Base64.getDecoder().decode(cleanBase64)
-                keystoreFile.writeBytes(bytes)
-            }
             if (keystoreFile.exists()) {
                 storeFile = keystoreFile
-                val sPass = System.getenv("KEYSTORE_PASSWORD")?.trim()?.ifEmpty { null } ?: "android"
-                val kPass = System.getenv("KEY_PASSWORD")?.trim()?.ifEmpty { null } ?: sPass
-
-                var resolvedAlias = System.getenv("KEY_ALIAS")?.trim()?.ifEmpty { null }
-                try {
-                    val ks = KeyStore.getInstance(KeyStore.getDefaultType())
-                    keystoreFile.inputStream().use { stream ->
-                        ks.load(stream, sPass.toCharArray())
-                    }
-                    if (resolvedAlias == null || !ks.containsAlias(resolvedAlias)) {
-                        val aliases = ks.aliases()
-                        if (aliases.hasMoreElements()) {
-                            resolvedAlias = aliases.nextElement()
-                        }
-                    }
-                } catch (e: Exception) {
-                    // Fallback if inspection fails
-                }
-
-                storePassword = sPass
-                keyAlias = resolvedAlias ?: "key0"
-                keyPassword = kPass
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEY_ALIAS") ?: "key0"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD") ?: ""
             }
         }
     }

@@ -35,14 +35,14 @@ jobs:
       - name: 4. Permisos a gradlew
         run: chmod +x gradlew
 
-      - name: 5. Restaurar google-services.json desde Secret
+      - name: 5. Restaurar archivos desde Secrets
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
+          echo "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
 
       - name: 6. Compilar y Firmar APK (Release)
         run: ./gradlew assembleRelease --no-daemon
         env:
-          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}

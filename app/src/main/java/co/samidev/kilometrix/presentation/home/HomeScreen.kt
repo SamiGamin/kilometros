@@ -50,50 +50,28 @@ fun HomeScreen(
                 .offset(y = h0Ty.dp)
         )
 
-        // ── Active Vehicle Card (card 1) ────────────────────────────────────
+        // ── Main Card (card 1): Fused Active Vehicle + Start Shift (or Active Shift Dashboard) ──
         val (c1Alpha, c1Ty) = staggeredEntrance(1)
-        val vehicle = uiState.activeVehicle
-        if (vehicle != null) {
-            HomeVehicleCard(
-                vehicle = vehicle,
+        val shift = uiState.activeShift
+        if (shift == null) {
+            // Estado REPOSO: Tarjeta Unificada de Vehículo Activo + Iniciar Recorrido
+            HomeMainVehicleShiftCard(
+                vehicle = uiState.activeVehicle,
+                onStartShiftClick = { showStartShiftDialog = true },
                 modifier = Modifier
                     .alpha(c1Alpha)
                     .offset(y = c1Ty.dp)
             )
-        }
-
-        // ── Earnings/Expenses card (card 2) — Visible solo cuando hay recorrido activo ──
-        val shiftActive = uiState.activeShift != null
-        AnimatedVisibility(
-            visible = shiftActive,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            val (c2Alpha, c2Ty) = staggeredEntrance(2)
-            HomeActiveShiftBalanceCard(
-                uiState = uiState,
+        } else {
+            // Estado TURNO ACTIVO: Balance y Dashboard de Recorrido
+            Column(
                 modifier = Modifier
-                    .alpha(c2Alpha)
-                    .offset(y = c2Ty.dp)
-            )
-        }
-
-        // ── Work Shift Card (card 3) — Reposo vs Activo ───────────────────────
-        val (c3Alpha, c3Ty) = staggeredEntrance(3)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .alpha(c3Alpha)
-                .offset(y = c3Ty.dp)
-        ) {
-            val shift = uiState.activeShift
-            if (shift == null) {
-                // Estado REPOSO
-                HomeStartShiftCard(
-                    onStartShiftClick = { showStartShiftDialog = true }
-                )
-            } else {
-                // Estado TURNO ACTIVO
+                    .fillMaxWidth()
+                    .alpha(c1Alpha)
+                    .offset(y = c1Ty.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                HomeActiveShiftBalanceCard(uiState = uiState)
                 HomeActiveShiftCard(
                     uiState = uiState,
                     onTogglePauseResume = { viewModel.togglePauseResumeShift() },
@@ -109,17 +87,19 @@ fun HomeScreen(
             }
         }
 
-        // ── AI analysis card (card 4) ─────────────────────────────────────
-        val (c4Alpha, c4Ty) = staggeredEntrance(4)
-        HomeAiAnalysisCard(
+        // ── Pico y Placa card (card 2) — Justo debajo de la tarjeta principal ──
+        val (c2Alpha, c2Ty) = staggeredEntrance(2)
+        HomePicoPlacaCard(
+            status = uiState.picoPlacaStatus,
+            onClick = onNavigateToPicoPlaca,
             modifier = Modifier
-                .alpha(c4Alpha)
-                .offset(y = c4Ty.dp)
+                .alpha(c2Alpha)
+                .offset(y = c2Ty.dp)
         )
 
-        // ── Rendimiento de Combustible card ────────────────────────────────
+        // ── Rendimiento de Combustible card (card 3) ────────────────────────
         if (uiState.fuelEfficiencySummary != null) {
-            val (cEffAlpha, cEffTy) = staggeredEntrance(4)
+            val (cEffAlpha, cEffTy) = staggeredEntrance(3)
             HomeFuelEfficiencyCard(
                 summary = uiState.fuelEfficiencySummary!!,
                 onClick = onNavigateToGastos,
@@ -129,14 +109,12 @@ fun HomeScreen(
             )
         }
 
-        // ── Pico y Placa card (card 5) ────────────────────────────────────
-        val (c5Alpha, c5Ty) = staggeredEntrance(5)
-        HomePicoPlacaCard(
-            status = uiState.picoPlacaStatus,
-            onClick = onNavigateToPicoPlaca,
+        // ── AI analysis card (card 4) ─────────────────────────────────────
+        val (c4Alpha, c4Ty) = staggeredEntrance(4)
+        HomeAiAnalysisCard(
             modifier = Modifier
-                .alpha(c5Alpha)
-                .offset(y = c5Ty.dp)
+                .alpha(c4Alpha)
+                .offset(y = c4Ty.dp)
         )
 
         Spacer(Modifier.height(80.dp))

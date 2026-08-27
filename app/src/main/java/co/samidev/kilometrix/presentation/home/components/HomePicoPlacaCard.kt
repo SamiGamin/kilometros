@@ -45,8 +45,8 @@ fun HomePicoPlacaCard(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = stringResource(R.string.home_pico_placa_label),
-                style = MaterialTheme.typography.titleMedium,
+                text = "Pico y Placa · Toca para ver detalles",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = OnSurface
             )
             Row(
