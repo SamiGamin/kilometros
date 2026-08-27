@@ -37,11 +37,15 @@ jobs:
 
       - name: 5. Restaurar archivos desde Secrets
         run: |
-          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
-          echo "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | tr -d '\r\n ' | base64 --decode > app/google-services.json
+          echo "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | tr -d '\r\n ' | base64 --decode > app/release.keystore
+
+      - name: 5.1 Validar integridad del Keystore y contraseña
+        run: |
+          keytool -list -keystore app/release.keystore -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -alias "${{ secrets.KEY_ALIAS }}"
 
       - name: 6. Compilar y Firmar APK (Release)
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --no-configuration-cache
         env:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
