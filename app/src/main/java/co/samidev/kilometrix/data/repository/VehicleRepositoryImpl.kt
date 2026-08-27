@@ -49,9 +49,13 @@ class VehicleRepositoryImpl @Inject constructor(
                             soatExpiry = doc.getString("soatExpiry"),
                             tecnomecExpiry = doc.getString("tecnomecExpiry"),
                             seguroExpiry = doc.getString("seguroExpiry"),
+                            extinguisherExpiry = doc.getString("extinguisherExpiry"),
                             soatEnabled = doc.getBoolean("soatEnabled") ?: false,
                             tecnomecEnabled = doc.getBoolean("tecnomecEnabled") ?: false,
-                            seguroEnabled = doc.getBoolean("seguroEnabled") ?: false
+                            seguroEnabled = doc.getBoolean("seguroEnabled") ?: false,
+                            extinguisherEnabled = doc.getBoolean("extinguisherEnabled") ?: false,
+                            lastOilChangeKm = doc.getLong("lastOilChangeKm")?.toInt(),
+                            oilIntervalKm = doc.getLong("oilIntervalKm")?.toInt() ?: 10000
                         )
                     }
                     trySend(vehicles)
@@ -79,9 +83,13 @@ class VehicleRepositoryImpl @Inject constructor(
                 "soatExpiry" to vehicle.soatExpiry,
                 "tecnomecExpiry" to vehicle.tecnomecExpiry,
                 "seguroExpiry" to vehicle.seguroExpiry,
+                "extinguisherExpiry" to vehicle.extinguisherExpiry,
                 "soatEnabled" to vehicle.soatEnabled,
                 "tecnomecEnabled" to vehicle.tecnomecEnabled,
-                "seguroEnabled" to vehicle.seguroEnabled
+                "seguroEnabled" to vehicle.seguroEnabled,
+                "extinguisherEnabled" to vehicle.extinguisherEnabled,
+                "lastOilChangeKm" to vehicle.lastOilChangeKm,
+                "oilIntervalKm" to vehicle.oilIntervalKm
             )
             docRef.set(vehicleData).await()
             Result.success(docRef.id)
@@ -105,9 +113,13 @@ class VehicleRepositoryImpl @Inject constructor(
                 "soatExpiry" to vehicle.soatExpiry,
                 "tecnomecExpiry" to vehicle.tecnomecExpiry,
                 "seguroExpiry" to vehicle.seguroExpiry,
+                "extinguisherExpiry" to vehicle.extinguisherExpiry,
                 "soatEnabled" to vehicle.soatEnabled,
                 "tecnomecEnabled" to vehicle.tecnomecEnabled,
-                "seguroEnabled" to vehicle.seguroEnabled
+                "seguroEnabled" to vehicle.seguroEnabled,
+                "extinguisherEnabled" to vehicle.extinguisherEnabled,
+                "lastOilChangeKm" to vehicle.lastOilChangeKm,
+                "oilIntervalKm" to vehicle.oilIntervalKm
             )
             getVehiclesCollection(userId).document(vehicle.id).update(updates).await()
             Result.success(Unit)

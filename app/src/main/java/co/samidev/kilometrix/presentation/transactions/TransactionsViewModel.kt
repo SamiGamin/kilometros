@@ -11,6 +11,7 @@ import org.json.JSONArray
 import co.samidev.kilometrix.domain.model.WorkShift
 import co.samidev.kilometrix.domain.repository.ActiveVehicleRepository
 import co.samidev.kilometrix.domain.repository.ExpenseRepository
+import co.samidev.kilometrix.domain.repository.UserRepository
 import co.samidev.kilometrix.domain.repository.WorkShiftRepository
 import co.samidev.kilometrix.domain.usecase.AddExpenseUseCase
 import co.samidev.kilometrix.domain.usecase.CalculateFuelEfficiencyUseCase
@@ -44,8 +45,13 @@ class TransactionsViewModel @Inject constructor(
     private val addExpenseUseCase: AddExpenseUseCase,
     private val calculateFuelEfficiencyUseCase: CalculateFuelEfficiencyUseCase,
     private val workShiftRepository: WorkShiftRepository,
-    private val recalculateFuelChainUseCase: RecalculateFuelChainUseCase
+    private val recalculateFuelChainUseCase: RecalculateFuelChainUseCase,
+    private val userRepository: UserRepository
 ) : ViewModel() {
+
+    val userPlatforms: StateFlow<List<String>> = userRepository.getUserProfile()
+        .map { it?.platforms ?: emptyList() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val hasActiveShift: StateFlow<Boolean> = workShiftRepository.getAnyActiveShift()
         .map { it != null }

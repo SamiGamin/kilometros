@@ -60,7 +60,7 @@ val OnTertiaryFixed = Color(0xFF2A1700)
 val OnTertiaryFixedVariant = Color(0xFF653E00)
 
 // Error
-val Error = Color(0xFF2196F3)
+val Error = Color(0xFFFA142F)
 val OnError = Color(0xFF690005)
 val ErrorContainer = Color(0xFF93000A)
 val OnErrorContainer = Color(0xFFFFDAD6)

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.samidev.kilometrix.domain.model.TRANSPORT_APPS
 import co.samidev.kilometrix.domain.model.TransportApp
+import co.samidev.kilometrix.domain.model.WorkPlatform
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.presentation.util.ThousandSeparatorVisualTransformation
 import co.samidev.kilometrix.ui.theme.OnSurface
@@ -58,10 +59,34 @@ private fun todayAsBogotaDatePickerMs(): Long {
 @Composable
 fun AddEarningSheetContent(
     vehicle: Vehicle?,
+    userPlatforms: List<String> = emptyList(),
     onSave: (appName: String, appEmoji: String, amount: Double, isBonus: Boolean, date: Long) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedApp by remember { mutableStateOf<TransportApp?>(TRANSPORT_APPS.first()) }
+    val availableApps = remember(userPlatforms) {
+        if (userPlatforms.isEmpty()) {
+            TRANSPORT_APPS
+        } else {
+            val platformSet = userPlatforms.map { platformId ->
+                val p = WorkPlatform.fromId(platformId)
+                listOf(p.id.lowercase(), p.displayName.lowercase(), p.name.lowercase()) + p.alternateIds.map { it.lowercase() }
+            }.flatten().toSet()
+
+            val filtered = TRANSPORT_APPS.filter { app ->
+                app.name.equals("Efectivo", ignoreCase = true) ||
+                platformSet.contains(app.name.lowercase())
+            }
+
+            if (filtered.none { it.name.equals("Efectivo", ignoreCase = true) }) {
+                val efectivoApp = TRANSPORT_APPS.firstOrNull { it.name.equals("Efectivo", ignoreCase = true) }
+                if (efectivoApp != null) filtered + efectivoApp else filtered
+            } else {
+                filtered
+            }
+        }
+    }
+
+    var selectedApp by remember(availableApps) { mutableStateOf<TransportApp?>(availableApps.firstOrNull()) }
     var amountText by remember { mutableStateOf("") }
     var isBonus by remember { mutableStateOf(false) }
     // Para el guardado usamos tiempo real en Colombia (System.currentTimeMillis es UTC-agnostic)
@@ -245,7 +270,7 @@ fun AddEarningSheetContent(
 
         // ── Grid de Apps de Transporte ───────────────────────────────────────
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TRANSPORT_APPS.chunked(3).forEach { row ->
+            availableApps.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     row.forEach { app ->
                         val isSelected = selectedApp?.name == app.name
@@ -280,6 +305,11 @@ fun AddEarningSheetContent(
                                     color = if (isSelected) Primary else OnSurface
                                 )
                             }
+                        }
+                    }
+                    if (row.size < 3) {
+                        repeat(3 - row.size) {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -330,6 +360,7 @@ fun AddEarningSheetContent(
 @Composable
 fun AddEarningBottomSheet(
     vehicle: Vehicle? = null,
+    userPlatforms: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (appName: String, appEmoji: String, amount: Double, isBonus: Boolean, date: Long) -> Unit
 ) {
@@ -338,6 +369,11 @@ fun AddEarningBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState
     ) {
-        AddEarningSheetContent(vehicle = vehicle, onSave = onSave, onDismiss = onDismiss)
+        AddEarningSheetContent(
+            vehicle = vehicle,
+            userPlatforms = userPlatforms,
+            onSave = onSave,
+            onDismiss = onDismiss
+        )
     }
 }
