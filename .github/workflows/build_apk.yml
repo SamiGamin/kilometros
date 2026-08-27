@@ -36,26 +36,28 @@ jobs:
         run: chmod +x gradlew
 
       - name: 5. Restaurar archivos desde Secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
-          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | tr -d '\r\n ' | base64 --decode > app/google-services.json
-          echo "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | tr -d '\r\n ' | base64 --decode > app/release.keystore
+          printf '%s' "$GS_B64" | tr -d '\r\n ' | base64 -d > app/google-services.json
+          printf '%s' "$KEYSTORE_B64" | tr -d '\r\n ' | base64 -d > app/release.keystore
 
-      - name: 5.1 Depurar y validar Keystore
-        run: |
-          echo "Tamaño del keystore:"
-          ls -lh app/release.keystore
-          
-          echo "Probando lectura del alias y contraseña..."
-          keytool -list -v -keystore app/release.keystore \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -alias "$KEY_ALIAS" \
-            -keypass "$KEY_PASSWORD"
+      - name: 5.1 Validar integridad
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "Tamaño exacto del archivo en bytes:"
+          wc -c app/release.keystore
 
-      - name: 6. Compilar APK (Release)
+          echo "Longitud en caracteres de la contraseña recibida:"
+          echo -n "$KEYSTORE_PASSWORD" | wc -m
+
+          echo "Validando lectura con keytool directo de ENV..."
+          keytool -list -keystore app/release.keystore -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS"
+
+      - name: 6. Compilar y Firmar APK (Release)
         run: ./gradlew assembleRelease --no-daemon --no-configuration-cache
         env:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
