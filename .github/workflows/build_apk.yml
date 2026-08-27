@@ -40,11 +40,22 @@ jobs:
           echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | tr -d '\r\n ' | base64 --decode > app/google-services.json
           echo "${{ secrets.SIGNING_KEYSTORE_BASE64 }}" | tr -d '\r\n ' | base64 --decode > app/release.keystore
 
-      - name: 5.1 Validar integridad del Keystore y contraseña
+      - name: 5.1 Depurar y validar Keystore
         run: |
-          keytool -list -keystore app/release.keystore -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -alias "${{ secrets.KEY_ALIAS }}"
+          echo "Tamaño del keystore:"
+          ls -lh app/release.keystore
+          
+          echo "Probando lectura del alias y contraseña..."
+          keytool -list -v -keystore app/release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -keypass "$KEY_PASSWORD"
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
-      - name: 6. Compilar y Firmar APK (Release)
+      - name: 6. Compilar APK (Release)
         run: ./gradlew assembleRelease --no-daemon --no-configuration-cache
         env:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
