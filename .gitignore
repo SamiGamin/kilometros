@@ -16,6 +16,11 @@
 .externalNativeBuild
 .cxx
 local.properties
+.vscode
+.mobiai
+.agents
+.kotlin
+stitch_visual_design_replicator
 
 # Keystore and signing keys
 *.jks

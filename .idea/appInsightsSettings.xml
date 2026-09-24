@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="co.SamiDev.kilometrix" />
-                  <option name="mobileSdkAppId" value="1:1005937380610:android:ee3dbe62dbf6a867adc61b" />
-                  <option name="projectId" value="kilometrix-ia" />
-                  <option name="projectNumber" value="1005937380610" />
+                  <option name="appId" value="co.samidev.kilometrix" />
+                  <option name="mobileSdkAppId" value="1:1071411755250:android:22a6d99d95ab66e72a786b" />
+                  <option name="projectId" value="samidev-hub" />
+                  <option name="projectNumber" value="1071411755250" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

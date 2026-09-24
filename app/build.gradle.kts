@@ -14,11 +14,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "co.SamiDev.kilometrix"
+        applicationId = "co.samidev.kilometrix"
         minSdk = 30
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.4"
+        versionCode = 4
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
