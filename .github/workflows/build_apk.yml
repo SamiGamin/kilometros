@@ -5,8 +5,6 @@ on:
     branches:
       - main
       - master
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -18,24 +16,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 1. Descargar código
+      - name: 1. Descargar código completo y tags
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Trae todos los tags remotos para comparar
 
-      - name: 2. Configurar Java JDK 17
+      - name: 2. Verificar si es una versión nueva
+        id: check_version
+        run: |
+          # Extraer el versionName de app/build.gradle.kts
+          VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2)
+          TAG_NAME="v$VERSION"
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+
+          # Comprobar si el tag ya existe en el repositorio
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "El tag $TAG_NAME ya existe. No es necesario crear un nuevo release."
+            echo "is_new_version=false" >> $GITHUB_OUTPUT
+          else
+            echo "¡Nueva versión detectada ($TAG_NAME)! Procediendo a compilar y publicar."
+            echo "is_new_version=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 3. Configurar Java JDK 17
+        if: steps.check_version.outputs.is_new_version == 'true' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 3. Configurar Gradle y Cache
+      - name: 4. Configurar Gradle y Cache
+        if: steps.check_version.outputs.is_new_version == 'true' || github.event_name == 'workflow_dispatch'
         uses: gradle/actions/setup-gradle@v4
 
-      - name: 4. Permisos a gradlew
+      - name: 5. Permisos a gradlew
+        if: steps.check_version.outputs.is_new_version == 'true' || github.event_name == 'workflow_dispatch'
         run: chmod +x gradlew
 
-      - name: 5. Restaurar archivos desde Secrets
+      - name: 6. Restaurar archivos desde Secrets
+        if: steps.check_version.outputs.is_new_version == 'true' || github.event_name == 'workflow_dispatch'
         env:
           KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
           GS_B64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
@@ -43,45 +64,34 @@ jobs:
           printf '%s' "$GS_B64" | tr -d '\r\n ' | base64 -d > app/google-services.json
           printf '%s' "$KEYSTORE_B64" | tr -d '\r\n ' | base64 -d > app/release.keystore
 
-      - name: 5.1 Validar integridad
+      - name: 6.1 Validar integridad
+        if: steps.check_version.outputs.is_new_version == 'true' || github.event_name == 'workflow_dispatch'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "Tamaño exacto del archivo en bytes:"
-          wc -c app/release.keystore
-
-          echo "Longitud en caracteres de la contraseña recibida:"
-          echo -n "$KEYSTORE_PASSWORD" | wc -m
-
-          echo "Validando lectura con keytool directo de ENV..."
           keytool -list -keystore app/release.keystore -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS"
 
-      - name: 6. Compilar y Firmar APK (Release)
+      - name: 7. Compilar y Firmar APK (Release)
+        if: steps.check_version.outputs.is_new_version == 'true' || github.event_name == 'workflow_nil' || github.event_name == 'workflow_dispatch' || steps.check_version.outputs.is_new_version == 'true'
         run: ./gradlew assembleRelease --no-daemon --no-configuration-cache
         env:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: 7. Obtener Versión para el Tag
-        id: get_version
-        run: |
-          VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2 || echo "1.0.0")
-          echo "VERSION=v$VERSION" >> $GITHUB_ENV
-          echo "TAG_NAME=v$VERSION" >> $GITHUB_ENV
-
       - name: 8. Crear Tag y GitHub Release Oficial
+        if: steps.check_version.outputs.is_new_version == 'true' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
-          name: "KiloMetrix ${{ env.VERSION }}"
+          name: "KiloMetrix v${{ env.VERSION }}"
           make_latest: true
           body: |
             ### 🚀 Nueva versión compilada y firmada
-            - **Versión:** `${{ env.VERSION }}`
+            - **Versión:** `v${{ env.VERSION }}`
             - **Commit:** `${{ github.sha }}`
-            - APK firmado listo para instalar/actualizar sin conflictos.
+            - APK firmado listo para instalar o actualizar sin conflictos.
           files: app/build/outputs/apk/release/*.apk
           draft: false
           prerelease: false
