@@ -2,10 +2,12 @@ package co.samidev.kilometrix.presentation.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
@@ -17,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -43,6 +46,8 @@ fun ProfileScreen(onLogout: () -> Unit) {
 
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showAdjustReserveDialog by remember { mutableStateOf(false) }
+    var showSelectWalletDialog by remember { mutableStateOf(false) }
+    var showCreateWalletDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.uiEvent.collect { event ->
@@ -284,7 +289,81 @@ fun ProfileScreen(onLogout: () -> Unit) {
                 }
             }
 
-            // 4. Maintenance Reserve Card
+            // 4. Kipu Accounting Wallet Card
+            val activeWallet = uiState.kipuWallets.firstOrNull { it.id == uiState.selectedKipuWalletId }
+                ?: uiState.kipuWallets.firstOrNull()
+            val walletName = activeWallet?.name ?: "Monedero de Trabajo"
+            val walletBalance = (activeWallet?.currentBalanceMinor ?: 0L).toDouble()
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(SurfaceContainerLow)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "CONTABILIDAD KIPU",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                        color = OnSurfaceVariant
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (uiState.kipuWallets.size > 1) {
+                            TextButton(onClick = { showSelectWalletDialog = true }) {
+                                Text("Cambiar", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Primary)
+                            }
+                        }
+                        TextButton(onClick = { showCreateWalletDialog = true }) {
+                            Text("+ Nuevo", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Secondary)
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(SurfaceContainerHigh.copy(alpha = 0.5f))
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Primary.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("💼", style = MaterialTheme.typography.titleLarge)
+                        }
+                        Column {
+                            Text(walletName, style = MaterialTheme.typography.titleMedium, color = OnSurface)
+                            Text("Monedero sincronizado", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                        }
+                    }
+                    Text(
+                        text = "$${currencyFormat.format(walletBalance)}",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Primary
+                    )
+                }
+            }
+
+            // 5. Maintenance Reserve Card
             val reservePercent = profile?.maintenanceReservePercent ?: 10
             Column(
                 modifier = Modifier
@@ -456,6 +535,173 @@ fun ProfileScreen(onLogout: () -> Unit) {
                         confirmText = ""
                     }
                 ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showSelectWalletDialog) {
+        val activeWallet = uiState.kipuWallets.firstOrNull { it.id == uiState.selectedKipuWalletId }
+            ?: uiState.kipuWallets.firstOrNull()
+
+        AlertDialog(
+            onDismissRequest = { showSelectWalletDialog = false },
+            title = {
+                Text(
+                    text = "Seleccionar Monedero Kipu",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Los gastos vehiculares y ganancias de turnos se registrarán en:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OnSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    uiState.kipuWallets.forEach { wallet ->
+                        val isSelected = wallet.id == (uiState.selectedKipuWalletId ?: activeWallet?.id)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) Primary.copy(alpha = 0.12f) else SurfaceContainerHigh)
+                                .clickable {
+                                    viewModel.selectKipuWallet(wallet.id)
+                                    showSelectWalletDialog = false
+                                }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = wallet.name,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    color = if (isSelected) Primary else OnSurface
+                                )
+                                Text(
+                                    text = "$${currencyFormat.format(wallet.currentBalanceMinor)} ${wallet.currency}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = OnSurfaceVariant
+                                )
+                            }
+                            if (isSelected) {
+                                Text("✓", color = Primary, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+                    HorizontalDivider(color = OutlineVariant.copy(alpha = 0.2f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Secondary.copy(alpha = 0.12f))
+                            .clickable {
+                                showSelectWalletDialog = false
+                                showCreateWalletDialog = true
+                            }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "+ Crear nuevo monedero",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Secondary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSelectWalletDialog = false }) {
+                    Text("Cerrar")
+                }
+            }
+        )
+    }
+
+    if (showCreateWalletDialog) {
+        var walletNameInput by remember { mutableStateOf("") }
+        var initialBalanceInput by remember { mutableStateOf("") }
+        var isNameError by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showCreateWalletDialog = false },
+            title = {
+                Text(
+                    text = "Nuevo Monedero Kipu",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Crea un monedero contable para registrar automáticamente los gastos y ganancias de Kilometrix en Kipu.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OnSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = walletNameInput,
+                        onValueChange = {
+                            walletNameInput = it
+                            isNameError = it.isBlank()
+                        },
+                        label = { Text("Nombre del monedero") },
+                        placeholder = { Text("Ej: Monedero Trabajo, Efectivo") },
+                        isError = isNameError,
+                        supportingText = if (isNameError) {
+                            { Text("El nombre es obligatorio", color = Error) }
+                        } else null,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = initialBalanceInput,
+                        onValueChange = { input ->
+                            if (input.all { it.isDigit() }) {
+                                initialBalanceInput = input
+                            }
+                        },
+                        label = { Text("Saldo inicial (COP)") },
+                        placeholder = { Text("0") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (walletNameInput.isBlank()) {
+                            isNameError = true
+                        } else {
+                            val initial = initialBalanceInput.toLongOrNull() ?: 0L
+                            viewModel.createKipuWallet(walletNameInput.trim(), initial)
+                            showCreateWalletDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                    enabled = walletNameInput.isNotBlank() && !uiState.isSaving
+                ) {
+                    if (uiState.isSaving) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White)
+                    } else {
+                        Text("Crear Monedero", color = Color.White)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateWalletDialog = false }) {
                     Text("Cancelar")
                 }
             }

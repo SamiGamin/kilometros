@@ -1,23 +1,29 @@
 package co.samidev.kilometrix.data.repository
 
+import co.samidev.kilometrix.data.sync.KipuWalletResolver
 import co.samidev.kilometrix.domain.model.ExpenseType
 import co.samidev.kilometrix.domain.model.FuelDetails
 import co.samidev.kilometrix.domain.model.FuelUnit
 import co.samidev.kilometrix.domain.model.VehicleExpense
 import co.samidev.kilometrix.domain.repository.ExpenseRepository
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ExpenseRepositoryImpl @Inject constructor(
     private val auth: FirebaseAuth,
-    private val db: FirebaseFirestore
+    private val db: FirebaseFirestore,
+    private val kipuWalletResolver: KipuWalletResolver
 ) : ExpenseRepository {
 
     private fun getExpensesCollection(userId: String) =
@@ -63,8 +69,6 @@ class ExpenseRepositoryImpl @Inject constructor(
             .whereEqualTo("type", ExpenseType.FUEL.name)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
-                // NOTA: Se eliminó el filtro kmTraveled > 0 para que todos los tanqueos
-                // (incluyendo parciales y reservas) lleguen al UseCase Multifase.
                 val list = snapshot?.documents
                     ?.mapNotNull { it.toVehicleExpense() }
                     ?.sortedByDescending { it.date }
@@ -81,19 +85,74 @@ class ExpenseRepositoryImpl @Inject constructor(
         val userId = auth.currentUser?.uid
             ?: return Result.failure(Exception("No hay sesión activa"))
         return try {
-            val docRef = getExpensesCollection(userId).document()
-            val data = expense.toFirestoreMap()
-            docRef.set(data).await()
+            val docRef = if (expense.id.isNotBlank()) {
+                getExpensesCollection(userId).document(expense.id)
+            } else {
+                getExpensesCollection(userId).document()
+            }
+            val expenseId = docRef.id
+            val finalExpense = expense.copy(id = expenseId)
 
-            // Si es combustible → actualizar odómetro del vehículo
-            val details = expense.fuelDetails
-            if (expense.type == ExpenseType.FUEL && details != null && details.odometerAtRefuel > 0) {
-                getVehicleDoc(userId, expense.vehicleId)
-                    .update("odometer", details.odometerAtRefuel)
-                    .await()
+            // Resolver monedero contable de Kipu
+            val targetWalletId = kipuWalletResolver.resolveTargetWalletId(userId)
+            val amountMinor = expense.amount.toLong()
+
+            val batch = db.batch()
+
+            // 1. Guardar gasto vehicular
+            batch.set(docRef, finalExpense.toFirestoreMap())
+
+            // 2. Registrar transacción contable en el Ledger de Kipu (users/{userId}/transactions/exp_{expenseId})
+            val txDocRef = db.collection("users").document(userId)
+                .collection("transactions").document("exp_$expenseId")
+
+            val description = if (expense.notes.isNotBlank()) {
+                "${expense.type.label}: ${expense.notes.trim()}"
+            } else {
+                "Gasto Vehicular: ${expense.type.label}"
             }
 
-            Result.success(docRef.id)
+            val txData = hashMapOf(
+                "operationId" to expenseId,
+                "walletId" to targetWalletId,
+                "destinationWalletId" to null,
+                "categoryId" to "vehicle",
+                "category" to "Vehículo",
+                "description" to description,
+                "amount" to expense.amount,
+                "amountMinor" to amountMinor,
+                "currency" to "COP",
+                "type" to "EXPENSE",
+                "source" to "KILOMETRIX",
+                "status" to "COMPLETED",
+                "date" to Timestamp(Date(expense.date)),
+                "createdAt" to FieldValue.serverTimestamp(),
+                "schemaVersion" to 1
+            )
+            batch.set(txDocRef, txData)
+
+            // 3. Descontar balance del monedero en Kipu (-amount.toLong())
+            if (targetWalletId.isNotBlank() && amountMinor > 0L) {
+                val walletRef = db.collection("users").document(userId)
+                    .collection("wallets").document(targetWalletId)
+                batch.set(
+                    walletRef,
+                    mapOf(
+                        "currentBalanceMinor" to FieldValue.increment(-amountMinor),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
+            }
+
+            // 4. Si es combustible → actualizar odómetro del vehículo
+            val details = expense.fuelDetails
+            if (expense.type == ExpenseType.FUEL && details != null && details.odometerAtRefuel > 0) {
+                batch.update(getVehicleDoc(userId, expense.vehicleId), "odometer", details.odometerAtRefuel)
+            }
+
+            batch.commit().await()
+            Result.success(expenseId)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -103,7 +162,36 @@ class ExpenseRepositoryImpl @Inject constructor(
         val userId = auth.currentUser?.uid
             ?: return Result.failure(Exception("No hay sesión activa"))
         return try {
-            getExpensesCollection(userId).document(expenseId).delete().await()
+            val expenseRef = getExpensesCollection(userId).document(expenseId)
+            val txRef = db.collection("users").document(userId)
+                .collection("transactions").document("exp_$expenseId")
+
+            val txSnap = txRef.get().await()
+            val expSnap = if (!txSnap.exists()) expenseRef.get().await() else null
+
+            val amountMinor = txSnap.getLong("amountMinor")
+                ?: (expSnap?.getDouble("amount") ?: 0.0).toLong()
+            val walletId = txSnap.getString("walletId")
+                ?: kipuWalletResolver.getSelectedWalletId()
+
+            val batch = db.batch()
+            batch.delete(expenseRef)
+            batch.delete(txRef)
+
+            if (!walletId.isNullOrBlank() && amountMinor > 0L) {
+                val walletRef = db.collection("users").document(userId)
+                    .collection("wallets").document(walletId)
+                batch.set(
+                    walletRef,
+                    mapOf(
+                        "currentBalanceMinor" to FieldValue.increment(amountMinor),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
+            }
+
+            batch.commit().await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -115,15 +203,63 @@ class ExpenseRepositoryImpl @Inject constructor(
             ?: return Result.failure(Exception("No hay sesión activa"))
         return try {
             val collection = getExpensesCollection(userId)
-            val chunks = expenses.chunked(450)
+            val targetWalletId = kipuWalletResolver.resolveTargetWalletId(userId)
+            // Cada item genera 2 escrituras (expense + tx), chunks de 200 items (< 500 ops por batch)
+            val chunks = expenses.chunked(200)
             var count = 0
             for (chunk in chunks) {
                 val batch = db.batch()
+                var chunkTotalMinor = 0L
+
                 for (exp in chunk) {
                     val docId = if (exp.id.isNotBlank()) exp.id else collection.document().id
                     val docRef = collection.document(docId)
-                    batch.set(docRef, exp.copy(vehicleId = vehicleId).toFirestoreMap())
+                    val fullExp = exp.copy(id = docId, vehicleId = vehicleId)
+                    batch.set(docRef, fullExp.toFirestoreMap())
+
+                    val expMinor = exp.amount.toLong()
+                    chunkTotalMinor += expMinor
+
+                    val txRef = db.collection("users").document(userId)
+                        .collection("transactions").document("exp_$docId")
+                    val description = if (exp.notes.isNotBlank()) {
+                        "${exp.type.label}: ${exp.notes.trim()}"
+                    } else {
+                        "Gasto Vehicular: ${exp.type.label}"
+                    }
+                    val txData = hashMapOf(
+                        "operationId" to docId,
+                        "walletId" to targetWalletId,
+                        "destinationWalletId" to null,
+                        "categoryId" to "vehicle",
+                        "category" to "Vehículo",
+                        "description" to description,
+                        "amount" to exp.amount,
+                        "amountMinor" to expMinor,
+                        "currency" to "COP",
+                        "type" to "EXPENSE",
+                        "source" to "KILOMETRIX",
+                        "status" to "COMPLETED",
+                        "date" to Timestamp(Date(exp.date)),
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "schemaVersion" to 1
+                    )
+                    batch.set(txRef, txData)
                 }
+
+                if (targetWalletId.isNotBlank() && chunkTotalMinor > 0L) {
+                    val walletRef = db.collection("users").document(userId)
+                        .collection("wallets").document(targetWalletId)
+                    batch.set(
+                        walletRef,
+                        mapOf(
+                            "currentBalanceMinor" to FieldValue.increment(-chunkTotalMinor),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        ),
+                        SetOptions.merge()
+                    )
+                }
+
                 batch.commit().await()
                 count += chunk.size
             }

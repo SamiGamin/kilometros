@@ -2,6 +2,7 @@ package co.samidev.kilometrix.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.samidev.kilometrix.data.sync.KipuWalletResolver
 import co.samidev.kilometrix.domain.repository.UserRepository
 import co.samidev.kilometrix.domain.usecase.GetDriverStatsUseCase
 import co.samidev.kilometrix.domain.usecase.UpdateUserProfileUseCase
@@ -26,31 +27,75 @@ class ProfileViewModel @Inject constructor(
     getDriverStatsUseCase: GetDriverStatsUseCase,
     private val updateUserProfileUseCase: UpdateUserProfileUseCase,
     private val auth: FirebaseAuth,
-    private val db: FirebaseFirestore
+    private val db: FirebaseFirestore,
+    private val kipuWalletResolver: KipuWalletResolver
 ) : ViewModel() {
 
     private val _internalState = MutableStateFlow(ProfileInternalState())
+    private val _selectedKipuWalletId = MutableStateFlow(kipuWalletResolver.getSelectedWalletId())
 
     private val _eventChannel = Channel<ProfileUiEvent>(Channel.BUFFERED)
     val uiEvent: Flow<ProfileUiEvent> = _eventChannel.receiveAsFlow()
 
+    private val kipuWalletsFlow = kipuWalletResolver.observeWallets(auth.currentUser?.uid.orEmpty())
+
     val uiState: StateFlow<ProfileScreenUiState> = combine(
         userRepository.getUserProfile(),
         getDriverStatsUseCase(),
-        _internalState
-    ) { profile, stats, internal ->
+        _internalState,
+        kipuWalletsFlow,
+        _selectedKipuWalletId
+    ) { profile, stats, internal, wallets, selectedWalletId ->
+        val effectiveSelected = selectedWalletId ?: wallets.firstOrNull {
+            val name = it.name.lowercase()
+            name.contains("trabajo") || name.contains("kilometrix")
+        }?.id ?: wallets.firstOrNull()?.id
+
         ProfileScreenUiState(
             profile = profile,
             stats = stats,
             isLoading = internal.isLoading,
             isSaving = internal.isSaving,
-            isEditSheetOpen = internal.isEditSheetOpen
+            isEditSheetOpen = internal.isEditSheetOpen,
+            kipuWallets = wallets,
+            selectedKipuWalletId = effectiveSelected
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = ProfileScreenUiState()
     )
+
+    fun selectKipuWallet(walletId: String) {
+        kipuWalletResolver.setSelectedWalletId(walletId)
+        _selectedKipuWalletId.value = walletId
+    }
+
+    fun createKipuWallet(name: String, initialBalance: Long = 0L) {
+        val userId = auth.currentUser?.uid ?: return
+        if (name.isBlank()) {
+            viewModelScope.launch {
+                _eventChannel.send(ProfileUiEvent.ShowSnackbar("El nombre del monedero no puede estar vacío"))
+            }
+            return
+        }
+        viewModelScope.launch {
+            _internalState.update { it.copy(isSaving = true) }
+            val result = kipuWalletResolver.createWallet(userId, name, initialBalance)
+            _internalState.update { it.copy(isSaving = false) }
+            if (result.isSuccess) {
+                val newId = result.getOrThrow()
+                _selectedKipuWalletId.value = newId
+                _eventChannel.send(ProfileUiEvent.ShowSnackbar("Monedero \"$name\" creado con éxito"))
+            } else {
+                _eventChannel.send(
+                    ProfileUiEvent.ShowSnackbar(
+                        result.exceptionOrNull()?.message ?: "Error al crear monedero"
+                    )
+                )
+            }
+        }
+    }
 
     fun openEditSheet() {
         _internalState.update { it.copy(isEditSheetOpen = true) }
