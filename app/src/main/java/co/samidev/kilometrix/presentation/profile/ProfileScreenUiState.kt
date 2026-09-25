@@ -11,5 +11,6 @@ data class ProfileScreenUiState(
     val isSaving: Boolean = false,
     val isEditSheetOpen: Boolean = false,
     val kipuWallets: List<KipuWalletSummary> = emptyList(),
-    val selectedKipuWalletId: String? = null
+    val selectedKipuWalletId: String? = null,
+    val isRefreshingWallets: Boolean = false
 )

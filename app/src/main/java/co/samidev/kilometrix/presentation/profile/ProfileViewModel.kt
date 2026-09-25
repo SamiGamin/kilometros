@@ -12,13 +12,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import co.samidev.kilometrix.data.sync.KipuWalletSummary
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 private data class ProfileInternalState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
-    val isEditSheetOpen: Boolean = false
+    val isEditSheetOpen: Boolean = false,
+    val isRefreshingWallets: Boolean = false
 )
 
 @HiltViewModel
@@ -33,17 +35,37 @@ class ProfileViewModel @Inject constructor(
 
     private val _internalState = MutableStateFlow(ProfileInternalState())
     private val _selectedKipuWalletId = MutableStateFlow(kipuWalletResolver.getSelectedWalletId())
+    private val _walletsList = MutableStateFlow<List<KipuWalletSummary>>(emptyList())
+    private var isObservingWallets = false
 
     private val _eventChannel = Channel<ProfileUiEvent>(Channel.BUFFERED)
     val uiEvent: Flow<ProfileUiEvent> = _eventChannel.receiveAsFlow()
 
-    private val kipuWalletsFlow = kipuWalletResolver.observeWallets(auth.currentUser?.uid.orEmpty())
+    init {
+        val uid = auth.currentUser?.uid
+        if (!uid.isNullOrBlank()) {
+            startObservingWallets(uid)
+            refreshKipuWallets()
+        }
+    }
+
+    private fun startObservingWallets(userId: String) {
+        if (isObservingWallets) return
+        isObservingWallets = true
+        viewModelScope.launch {
+            kipuWalletResolver.observeWallets(userId).collect { list ->
+                if (list.isNotEmpty() || _walletsList.value.isEmpty()) {
+                    _walletsList.value = list
+                }
+            }
+        }
+    }
 
     val uiState: StateFlow<ProfileScreenUiState> = combine(
         userRepository.getUserProfile(),
         getDriverStatsUseCase(),
         _internalState,
-        kipuWalletsFlow,
+        _walletsList,
         _selectedKipuWalletId
     ) { profile, stats, internal, wallets, selectedWalletId ->
         val effectiveSelected = selectedWalletId ?: wallets.firstOrNull {
@@ -58,13 +80,40 @@ class ProfileViewModel @Inject constructor(
             isSaving = internal.isSaving,
             isEditSheetOpen = internal.isEditSheetOpen,
             kipuWallets = wallets,
-            selectedKipuWalletId = effectiveSelected
+            selectedKipuWalletId = effectiveSelected,
+            isRefreshingWallets = internal.isRefreshingWallets
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = ProfileScreenUiState()
     )
+
+    fun refreshKipuWallets() {
+        val userId = auth.currentUser?.uid ?: return
+        startObservingWallets(userId)
+        if (_internalState.value.isRefreshingWallets) return
+        viewModelScope.launch {
+            _internalState.update { it.copy(isRefreshingWallets = true) }
+            try {
+                val currentSelected = kipuWalletResolver.getSelectedWalletId()
+                if (currentSelected != null) {
+                    _selectedKipuWalletId.value = currentSelected
+                }
+                val result = kipuWalletResolver.recalculateAndUpdateWalletBalances(userId)
+                if (result.isSuccess) {
+                    val updated = result.getOrThrow()
+                    if (updated.isNotEmpty()) {
+                        _walletsList.value = updated
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileViewModel", "Error al actualizar saldos: ${e.message}", e)
+            } finally {
+                _internalState.update { it.copy(isRefreshingWallets = false) }
+            }
+        }
+    }
 
     fun selectKipuWallet(walletId: String) {
         kipuWalletResolver.setSelectedWalletId(walletId)
@@ -86,6 +135,7 @@ class ProfileViewModel @Inject constructor(
             if (result.isSuccess) {
                 val newId = result.getOrThrow()
                 _selectedKipuWalletId.value = newId
+                refreshKipuWallets()
                 _eventChannel.send(ProfileUiEvent.ShowSnackbar("Monedero \"$name\" creado con éxito"))
             } else {
                 _eventChannel.send(

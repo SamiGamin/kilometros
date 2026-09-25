@@ -2,9 +2,11 @@ package co.samidev.kilometrix.data.sync
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +25,44 @@ data class KipuWalletSummary(
     val currentBalanceMinor: Long = 0L,
     val icon: String = "wallet"
 )
+
+private fun DocumentSnapshot.extractNumber(vararg fieldNames: String): Long? {
+    for (name in fieldNames) {
+        val raw = get(name) ?: continue
+        val value = when (raw) {
+            is Number -> raw.toLong()
+            is String -> raw.toDoubleOrNull()?.toLong()
+            else -> null
+        }
+        if (value != null) return value
+    }
+    return null
+}
+
+private fun DocumentSnapshot.extractWalletBalance(): Long {
+    return extractNumber(
+        "currentBalanceMinor",
+        "currentBalance",
+        "balanceMinor",
+        "balance",
+        "saldoMinor",
+        "saldo"
+    ) ?: extractNumber(
+        "initialBalanceMinor",
+        "initialBalance",
+        "saldoInicial",
+        "saldoInicialMinor"
+    ) ?: 0L
+}
+
+private fun DocumentSnapshot.extractInitialBalance(): Long {
+    return extractNumber(
+        "initialBalanceMinor",
+        "initialBalance",
+        "saldoInicial",
+        "saldoInicialMinor"
+    ) ?: 0L
+}
 
 @Singleton
 class KipuWalletResolver @Inject constructor(
@@ -72,9 +112,7 @@ class KipuWalletResolver @Inject constructor(
                 val list = snapshot?.documents?.mapNotNull { doc ->
                     val name = doc.getString("name") ?: return@mapNotNull null
                     val currency = doc.getString("currency") ?: "COP"
-                    val balanceMinor = doc.getLong("currentBalanceMinor")
-                        ?: doc.getLong("initialBalanceMinor")
-                        ?: 0L
+                    val balanceMinor = doc.extractWalletBalance()
                     val icon = doc.getString("icon") ?: "wallet"
 
                     KipuWalletSummary(
@@ -90,6 +128,148 @@ class KipuWalletResolver @Inject constructor(
             }
 
         awaitClose { listener.remove() }
+    }
+
+    /**
+     * Recalcula y actualiza en Firestore y localmente el saldo real de cada monedero
+     * a partir de su saldo inicial y las transacciones registradas (ingresos, gastos, transferencias).
+     */
+    suspend fun recalculateAndUpdateWalletBalances(userId: String): Result<List<KipuWalletSummary>> {
+        if (userId.isBlank()) return Result.failure(Exception("No hay sesión activa"))
+
+        return try {
+            val walletsCol = db.collection("users").document(userId).collection("wallets")
+            val txCol = db.collection("users").document(userId).collection("transactions")
+
+            // 1. Obtener monederos desde el servidor (o cache si offline)
+            val walletsSnapshot = try {
+                walletsCol.get(Source.SERVER).await()
+            } catch (e: Exception) {
+                walletsCol.get().await()
+            }
+
+            if (walletsSnapshot.isEmpty) {
+                resolveTargetWalletId(userId)
+                val refreshedSnap = walletsCol.get().await()
+                val list = refreshedSnap.documents.mapNotNull { doc ->
+                    val name = doc.getString("name") ?: return@mapNotNull null
+                    val currency = doc.getString("currency") ?: "COP"
+                    val balanceMinor = doc.extractWalletBalance()
+                    val icon = doc.getString("icon") ?: "wallet"
+                    KipuWalletSummary(doc.id, name, currency, balanceMinor, icon)
+                }
+                return Result.success(list)
+            }
+
+            // 2. Obtener transacciones contables para auditar y calcular saldo real
+            val txSnapshot = try {
+                txCol.get(Source.SERVER).await()
+            } catch (e: Exception) {
+                try { txCol.get().await() } catch (_: Exception) { null }
+            }
+
+            val deltasByWallet = mutableMapOf<String, Long>()
+            val walletsWithTransactions = mutableSetOf<String>()
+
+            txSnapshot?.documents?.forEach { txDoc ->
+                val status = txDoc.getString("status")?.uppercase()
+                if (status in listOf("CANCELLED", "VOID", "ANULADO", "REVERSED", "DELETED")) {
+                    return@forEach
+                }
+
+                val type = txDoc.getString("type")?.uppercase() ?: ""
+                val walletId = txDoc.getString("walletId")
+                    ?: txDoc.getString("targetWalletId")
+                    ?: txDoc.getString("sourceWalletId")
+                val destWalletId = txDoc.getString("destinationWalletId")
+                    ?: txDoc.getString("destWalletId")
+
+                val amountMinor = txDoc.extractNumber("amountMinor", "amount") ?: 0L
+                if (amountMinor <= 0L) return@forEach
+
+                when {
+                    type in listOf("INCOME", "INGRESO") -> {
+                        if (!walletId.isNullOrBlank()) {
+                            walletsWithTransactions.add(walletId)
+                            deltasByWallet[walletId] = (deltasByWallet[walletId] ?: 0L) + amountMinor
+                        }
+                    }
+                    type in listOf("EXPENSE", "GASTO") -> {
+                        if (!walletId.isNullOrBlank()) {
+                            walletsWithTransactions.add(walletId)
+                            deltasByWallet[walletId] = (deltasByWallet[walletId] ?: 0L) - amountMinor
+                        }
+                    }
+                    type in listOf("TRANSFER", "TRANSFERENCIA") -> {
+                        if (!walletId.isNullOrBlank()) {
+                            walletsWithTransactions.add(walletId)
+                            deltasByWallet[walletId] = (deltasByWallet[walletId] ?: 0L) - amountMinor
+                        }
+                        if (!destWalletId.isNullOrBlank()) {
+                            walletsWithTransactions.add(destWalletId)
+                            deltasByWallet[destWalletId] = (deltasByWallet[destWalletId] ?: 0L) + amountMinor
+                        }
+                    }
+                }
+            }
+
+            val updatedSummaries = mutableListOf<KipuWalletSummary>()
+            val batch = db.batch()
+            var hasUpdates = false
+
+            for (doc in walletsSnapshot.documents) {
+                val walletId = doc.id
+                val name = doc.getString("name") ?: continue
+                val currency = doc.getString("currency") ?: "COP"
+                val icon = doc.getString("icon") ?: "wallet"
+
+                val docBalance = doc.extractWalletBalance()
+                val initialBalance = doc.extractInitialBalance()
+                val hasTx = walletId in walletsWithTransactions
+
+                val realBalance = if (hasTx) {
+                    initialBalance + (deltasByWallet[walletId] ?: 0L)
+                } else {
+                    docBalance
+                }
+
+                val currentRawMinor = doc.getLong("currentBalanceMinor")
+                if (currentRawMinor != realBalance) {
+                    batch.set(
+                        doc.reference,
+                        mapOf(
+                            "currentBalanceMinor" to realBalance,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        ),
+                        SetOptions.merge()
+                    )
+                    hasUpdates = true
+                }
+
+                updatedSummaries.add(
+                    KipuWalletSummary(
+                        id = walletId,
+                        name = name,
+                        currency = currency,
+                        currentBalanceMinor = realBalance,
+                        icon = icon
+                    )
+                )
+            }
+
+            if (hasUpdates) {
+                try {
+                    batch.commit().await()
+                } catch (e: Exception) {
+                    Log.w(TAG, "No se pudo sincronizar batch de balances en Firestore: ${e.message}")
+                }
+            }
+
+            Result.success(updatedSummaries)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error recalculando balances de monederos: ${e.message}", e)
+            Result.failure(e)
+        }
     }
 
     /**

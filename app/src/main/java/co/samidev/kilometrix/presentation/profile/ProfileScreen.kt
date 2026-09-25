@@ -11,18 +11,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import co.samidev.kilometrix.R
 import co.samidev.kilometrix.domain.model.WorkPlatform
 import co.samidev.kilometrix.presentation.profile.components.AdjustReserveDialog
@@ -49,7 +53,21 @@ fun ProfileScreen(onLogout: () -> Unit) {
     var showSelectWalletDialog by remember { mutableStateOf(false) }
     var showCreateWalletDialog by remember { mutableStateOf(false) }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshKipuWallets()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     LaunchedEffect(Unit) {
+        viewModel.refreshKipuWallets()
         viewModel.uiEvent.collect { event ->
             when (event) {
                 is ProfileUiEvent.ShowSnackbar -> {
@@ -294,6 +312,14 @@ fun ProfileScreen(onLogout: () -> Unit) {
                 ?: uiState.kipuWallets.firstOrNull()
             val walletName = activeWallet?.name ?: "Monedero de Trabajo"
             val walletBalance = (activeWallet?.currentBalanceMinor ?: 0L).toDouble()
+            val walletEmoji = when (activeWallet?.icon?.lowercase()) {
+                "briefcase", "trabajo" -> "💼"
+                "bank", "banco" -> "🏦"
+                "credit_card", "tarjeta" -> "💳"
+                "savings", "ahorros", "piggy" -> "🐷"
+                "cash", "efectivo" -> "💵"
+                else -> "💼"
+            }
 
             Column(
                 modifier = Modifier
@@ -308,15 +334,39 @@ fun ProfileScreen(onLogout: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "CONTABILIDAD KIPU",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-                        color = OnSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "CONTABILIDAD KIPU",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                            color = OnSurfaceVariant
+                        )
+                        if (uiState.isRefreshingWallets) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = Primary
+                            )
+                        }
+                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        IconButton(
+                            onClick = { viewModel.refreshKipuWallets() },
+                            modifier = Modifier.size(32.dp),
+                            enabled = !uiState.isRefreshingWallets
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Actualizar saldos",
+                                tint = if (uiState.isRefreshingWallets) Primary else OnSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                         if (uiState.kipuWallets.size > 1) {
                             TextButton(onClick = { showSelectWalletDialog = true }) {
                                 Text("Cambiar", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Primary)
@@ -348,7 +398,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                                 .background(Primary.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("💼", style = MaterialTheme.typography.titleLarge)
+                            Text(walletEmoji, style = MaterialTheme.typography.titleLarge)
                         }
                         Column {
                             Text(walletName, style = MaterialTheme.typography.titleMedium, color = OnSurface)
@@ -563,6 +613,14 @@ fun ProfileScreen(onLogout: () -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     uiState.kipuWallets.forEach { wallet ->
                         val isSelected = wallet.id == (uiState.selectedKipuWalletId ?: activeWallet?.id)
+                        val itemEmoji = when (wallet.icon.lowercase()) {
+                            "briefcase", "trabajo" -> "💼"
+                            "bank", "banco" -> "🏦"
+                            "credit_card", "tarjeta" -> "💳"
+                            "savings", "ahorros", "piggy" -> "🐷"
+                            "cash", "efectivo" -> "💵"
+                            else -> "💼"
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -576,19 +634,25 @@ fun ProfileScreen(onLogout: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column {
-                                Text(
-                                    text = wallet.name,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    ),
-                                    color = if (isSelected) Primary else OnSurface
-                                )
-                                Text(
-                                    text = "$${currencyFormat.format(wallet.currentBalanceMinor)} ${wallet.currency}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = OnSurfaceVariant
-                                )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(itemEmoji, fontSize = 20.sp)
+                                Column {
+                                    Text(
+                                        text = wallet.name,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        ),
+                                        color = if (isSelected) Primary else OnSurface
+                                    )
+                                    Text(
+                                        text = "$${currencyFormat.format(wallet.currentBalanceMinor)} ${wallet.currency}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = OnSurfaceVariant
+                                    )
+                                }
                             }
                             if (isSelected) {
                                 Text("✓", color = Primary, fontWeight = FontWeight.Bold)
