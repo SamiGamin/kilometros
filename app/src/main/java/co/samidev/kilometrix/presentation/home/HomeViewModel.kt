@@ -471,6 +471,7 @@ class HomeViewModel @Inject constructor(
         val obdMetrics = obdSessionState.snapshot.value.metrics
         val isConnectedAtEnd = uiState.value.isObdConnected
         val finalMetricsForEval = obdMetrics.copy(connectedAtEnd = isConnectedAtEnd)
+        val calFactors = uiState.value.obdCalibrationFactors
 
         viewModelScope.launch {
             actionLoading.value = true
@@ -489,7 +490,10 @@ class HomeViewModel @Inject constructor(
                 obdSampleCount = obdMetrics.sampleCount,
                 obdMeanDtMs = obdMetrics.meanDtMs,
                 obdIdleSec = obdMetrics.idleSec,
-                obdCutoffSec = obdMetrics.cutoffSec
+                obdCutoffSec = obdMetrics.cutoffSec,
+                obdFuelFactorEwma = calFactors.kFuel,
+                obdFuelFactorStdev = calFactors.obdFuelFactorStdev,
+                obdDistFactorMedian = calFactors.kDist
             )
             actionLoading.value = false
             if (result.isSuccess) {
