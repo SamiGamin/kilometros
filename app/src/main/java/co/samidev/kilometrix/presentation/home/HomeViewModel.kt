@@ -43,8 +43,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -103,7 +105,8 @@ private data class HomeCoreData(
 private data class ObdLiveBundle(
     val connectionState: ConnectionState,
     val diagnosticInfo: EcuDiagnosticInfo,
-    val sessionSnapshot: ObdSessionSnapshot
+    val sessionSnapshot: ObdSessionSnapshot,
+    val calibrationFactors: ObdCalibrationFactors
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -168,6 +171,10 @@ class HomeViewModel @Inject constructor(
             } else flowOf(Triple(emptyList(), emptyList(), emptyList()))
         }
 
+    private val calibrationFlow: Flow<ObdCalibrationFactors> = vehicleDataTriple
+        .map { (fuel, _, shifts) -> calculateObdCalibrationUseCase(fuel, shifts) }
+        .distinctUntilChanged()
+
     private val coreDataFlow: Flow<HomeCoreData> = combine(
         userRepository.getUserProfile(),
         activeVehicle,
@@ -181,9 +188,10 @@ class HomeViewModel @Inject constructor(
     private val obdLiveFlow: Flow<ObdLiveBundle> = combine(
         obdRepository.connectionState,
         obdRepository.diagnosticInfo,
-        obdSessionState.snapshot
-    ) { conn, diag, session ->
-        ObdLiveBundle(conn, diag, session)
+        obdSessionState.snapshot,
+        calibrationFlow
+    ) { conn, diag, session, cal ->
+        ObdLiveBundle(conn, diag, session, cal)
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -216,7 +224,7 @@ class HomeViewModel @Inject constructor(
             fuelExpenses = fuelExpenses,
             currentVehicleOdometer = currentVehicleOdometer
         )
-        val obdCalibration = calculateObdCalibrationUseCase(fuelExpenses, allShifts)
+        val obdCalibration = obd.calibrationFactors
 
         val isObdConnected = obd.connectionState is ConnectionState.Connected && obd.diagnosticInfo.ecuVerified
         val rPromCalibrated = globalFuelSummary.kmPerGallonAverage
