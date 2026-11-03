@@ -1,5 +1,6 @@
 package co.samidev.kilometrix.presentation.analytics
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -170,6 +171,208 @@ fun AnalyticsScreen(viewModel: AnalyticsViewModel = hiltViewModel()) {
                 style = MaterialTheme.typography.labelSmall,
                 color = OnSurfaceVariant
             )
+        }
+
+        // ── Observabilidad OBD ──
+        Text(
+            text = "📡 Consumo y Calibración OBD del período",
+            style = MaterialTheme.typography.titleMedium,
+            color = OnSurface
+        )
+
+        if (uiState.obdTurnosTotal == 0) {
+            Text(
+                text = "Sin turnos con telemetría OBD en este período. Conecta el adaptador al iniciar recorridos para ver consumo real.",
+                style = MaterialTheme.typography.bodySmall,
+                color = OnSurfaceVariant
+            )
+        } else {
+            // Card B1 — Consumo real vs semilla
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceContainerLow),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Consumo real vs semilla",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant
+                    )
+                    if (uiState.obdLitersRaw == 0.0) {
+                        Text(
+                            text = "Sin datos OBD en este período.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = OnSurfaceVariant
+                        )
+                    } else {
+                        val isRealBetter = uiState.obdKmPerGallonReal > uiState.obdKmPerGallonSemilla
+                        val realColor = if (isRealBetter) Primary else OnSurfaceVariant
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "%.1f km/gal".format(uiState.obdKmPerGallonReal),
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = realColor
+                            )
+                            if (uiState.obdKmPerGallonSemilla > 0.0) {
+                                val diffPct = ((uiState.obdKmPerGallonReal - uiState.obdKmPerGallonSemilla) / uiState.obdKmPerGallonSemilla) * 100.0
+                                val diffColor = if (diffPct >= 0) Secondary else Error
+                                Text(
+                                    text = "%+.1f%%".format(diffPct),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = diffColor
+                                )
+                            }
+                        }
+                        Text(
+                            text = "vs %.1f estimado (semilla VE=0.85)".format(uiState.obdKmPerGallonSemilla),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OnSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Card B2 — Calidad de la medición
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceContainerLow),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Calidad de la medición",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant
+                    )
+                    Text(
+                        text = "${uiState.obdTurnosValidos} de ${uiState.obdTurnosTotal} turnos válidos (%.0f%%)".format(uiState.obdValidShiftPct),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OnSurface
+                    )
+                    Text(
+                        text = "Cobertura promedio: %.0f%%".format(uiState.obdCoverageAvgPct),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OnSurfaceVariant
+                    )
+                    Text(
+                        text = "Km medidos por OBD: %.1f".format(uiState.obdKmMeasured),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OnSurfaceVariant
+                    )
+                    if (uiState.obdValidShiftPct < 80.0) {
+                        Text(
+                            text = "⚠️ Menos del 80% de turnos válidos. Revisa conexión OBD.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Error,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            // Card B3 — Estado de calibración
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceContainerLow),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Estado de calibración",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OnSurfaceVariant
+                        )
+                        Text(
+                            text = if (uiState.obdKFuelStable) "🟢 Estable" else "🟠 Inestable",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                    val kFuelText = if (uiState.obdCalibratedCycles >= 2) {
+                        "k_fuel: %.2f (±%.1f%%)".format(uiState.obdKFuel, uiState.obdKFuelBandPct)
+                    } else {
+                        "k_fuel: %.2f (1 ciclo)".format(uiState.obdKFuel)
+                    }
+                    Text(
+                        text = kFuelText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = OnSurface
+                    )
+                    Text(
+                        text = "Ciclos calibrados: ${uiState.obdCalibratedCycles}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = OnSurfaceVariant
+                    )
+                }
+            }
+
+            // Card B4 — Reconciliación física
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceContainerLow),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Reconciliación física",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant
+                    )
+                    val burnedLiters = uiState.obdLitersRaw * uiState.obdKFuel
+                    val diffLiters = burnedLiters - uiState.obdLitersComprados
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Comprados: %.1f L".format(uiState.obdLitersComprados),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = OnSurface
+                        )
+                        Text(
+                            text = "Quemados (OBD): %.1f L".format(burnedLiters),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = OnSurface
+                        )
+                    }
+                    Text(
+                        text = "Diferencia: %+.1f L".format(diffLiters),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (diffLiters <= 0.0) Secondary else Error
+                    )
+                    Text(
+                        text = "La diferencia es combustible en tanque al cierre del período, no pérdida.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
         }
 
         // Bar Chart

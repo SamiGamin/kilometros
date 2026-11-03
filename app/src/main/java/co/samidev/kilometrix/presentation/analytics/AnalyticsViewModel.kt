@@ -2,10 +2,12 @@ package co.samidev.kilometrix.presentation.analytics
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.samidev.kilometrix.domain.model.ExpenseType
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.domain.model.VehicleExpense
 import co.samidev.kilometrix.domain.model.WorkShift
 import co.samidev.kilometrix.domain.repository.ActiveVehicleRepository
+import co.samidev.kilometrix.domain.usecase.CalculateObdCalibrationUseCase
 import co.samidev.kilometrix.domain.usecase.GetExpensesUseCase
 import co.samidev.kilometrix.domain.usecase.GetVehiclesUseCase
 import co.samidev.kilometrix.domain.usecase.GetWorkShiftsUseCase
@@ -41,7 +43,21 @@ data class AnalyticsUiState(
     val totalHours: Double = 0.0,
     val platformEarnings: Map<String, Double> = emptyMap(),
     val chartData: List<ChartBarData> = emptyList(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    // ── Observabilidad OBD (agregados del período) ──
+    val obdKmMeasured: Double = 0.0,
+    val obdLitersRaw: Double = 0.0,
+    val obdKmPerGallonReal: Double = 0.0,
+    val obdKmPerGallonSemilla: Double = 0.0,
+    val obdValidShiftPct: Double = 0.0,
+    val obdTurnosValidos: Int = 0,
+    val obdTurnosTotal: Int = 0,
+    val obdCoverageAvgPct: Double = 0.0,
+    val obdKFuel: Double = 1.0,
+    val obdKFuelBandPct: Double = 0.0,
+    val obdKFuelStable: Boolean = true,
+    val obdCalibratedCycles: Int = 0,
+    val obdLitersComprados: Double = 0.0
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -50,7 +66,8 @@ class AnalyticsViewModel @Inject constructor(
     getVehiclesUseCase: GetVehiclesUseCase,
     private val activeVehicleRepository: ActiveVehicleRepository,
     private val getWorkShiftsUseCase: GetWorkShiftsUseCase,
-    private val getExpensesUseCase: GetExpensesUseCase
+    private val getExpensesUseCase: GetExpensesUseCase,
+    private val calculateObdCalibrationUseCase: CalculateObdCalibrationUseCase
 ) : ViewModel() {
 
     private val _period = MutableStateFlow(AnalyticsPeriod.MONTH)
@@ -106,6 +123,31 @@ class AnalyticsViewModel @Inject constructor(
         // Generate Chart Data
         val chartData = generateChartData(period, startTimeMs, endTimeMs, filteredShifts)
 
+        // ── Observabilidad OBD ──
+        val obdShifts = filteredShifts.filter { it.obdSampleCount > 0 || it.obdFuelLitersRaw > 0.0 }
+        val obdValidShifts = obdShifts.filter { it.obdValid }
+        val totalObdKm = obdShifts.sumOf { it.obdDistanceKm }
+        val totalObdLiters = obdShifts.sumOf { it.obdFuelLitersRaw }
+
+        // Calibración con historial COMPLETO (no solo período), para coincidir con Home
+        val calib = calculateObdCalibrationUseCase(
+            fuelExpenses = expenses,
+            shifts = shifts
+        )
+        val calibratedKm = totalObdKm * calib.kDist
+        val calibratedLiters = totalObdLiters * calib.kFuel
+        val kmPerGallonReal = if (calibratedLiters > 0.0)
+            (calibratedKm / 3.785411784) / (calibratedLiters / 3.785411784) else 0.0
+        val kmPerGallonSemilla = if (totalObdLiters > 0.0)
+            (totalObdKm / 3.785411784) / (totalObdLiters / 3.785411784) else 0.0
+        val litersComprados = filteredExpenses
+            .filter { it.type == ExpenseType.FUEL }
+            .sumOf { (it.fuelDetails?.gallons ?: 0.0) * 3.785411784 }
+        val coverageAvg = if (obdShifts.isNotEmpty())
+            obdShifts.map { it.obdCoveragePct }.average() else 0.0
+        val validPct = if (obdShifts.isNotEmpty())
+            (obdValidShifts.size.toDouble() / obdShifts.size) * 100.0 else 0.0
+
         AnalyticsUiState(
             vehicles = vehiclesList,
             selectedVehicle = vehicle,
@@ -119,7 +161,20 @@ class AnalyticsViewModel @Inject constructor(
             earningsPerKm = earningsPerKm,
             totalHours = totalHours,
             platformEarnings = platformMap,
-            chartData = chartData
+            chartData = chartData,
+            obdKmMeasured = totalObdKm,
+            obdLitersRaw = totalObdLiters,
+            obdKmPerGallonReal = kmPerGallonReal,
+            obdKmPerGallonSemilla = kmPerGallonSemilla,
+            obdValidShiftPct = validPct,
+            obdTurnosValidos = obdValidShifts.size,
+            obdTurnosTotal = obdShifts.size,
+            obdCoverageAvgPct = coverageAvg,
+            obdKFuel = calib.kFuel,
+            obdKFuelBandPct = calib.confidenceBandPct,
+            obdKFuelStable = calib.isFuelStable,
+            obdCalibratedCycles = calib.calibratedFuelCycles,
+            obdLitersComprados = litersComprados
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AnalyticsUiState())
 
