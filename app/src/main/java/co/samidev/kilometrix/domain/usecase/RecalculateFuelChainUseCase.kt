@@ -70,7 +70,10 @@ class RecalculateFuelChainUseCase @Inject constructor() {
             val idxB = milestoneIndices[m + 1]
             val itemA = normalized[idxA]
             val itemB = normalized[idxB]
-            val deltaKm = itemB.od - itemA.od
+            val odA = itemA.od
+            val odB = itemB.od
+            if (odA <= 0 || odB <= 0 || odB <= odA) continue
+            val deltaKm = odB - odA
 
             val gallonsConsumed = when {
                 itemA.details.isFullTank && itemB.details.isFullTank ->

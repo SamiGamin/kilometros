@@ -153,6 +153,7 @@ class CalculateObdCalibrationUseCase @Inject constructor() {
 
             val odA = fdA.odometerAtRefuel
             val odB = fdB.odometerAtRefuel
+            if (odA <= 0 || odB <= 0 || odB <= odA) continue
             val deltaKm = odB - odA
             if (deltaKm <= 0) continue
 

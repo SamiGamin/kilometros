@@ -237,6 +237,7 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
             val recB = fuelRecords[idxB]
             val odA = recA.odometerAtRefuel
             val odB = recB.odometerAtRefuel
+            if (odA <= 0 || odB <= 0 || odB <= odA) continue
             val deltaKm = odB - odA
 
             // Regla de Ciclos Exclusivos (Punto 4):
