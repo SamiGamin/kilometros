@@ -228,7 +228,6 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
         val cycles = mutableListOf<CalibratedCycle>()
         var abandonedCyclesCount = 0
         var latestCapacityProbeGallons: Double? = null
-        val isLegacySyntheticFixture = fuelRecords[calibrationHits.first()].let { it.isReserve && it.gallons == 0.0 }
 
         for (i in 0 until calibrationHits.size - 1) {
             val idxA = calibrationHits[i]
@@ -238,6 +237,7 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
             val recB = fuelRecords[idxB]
             val odA = recA.odometerAtRefuel
             val odB = recB.odometerAtRefuel
+            if (odA <= 0 || odB <= 0 || odB <= odA) continue
             val deltaKm = odB - odA
 
             // Regla de Ciclos Exclusivos (Punto 4):
@@ -258,19 +258,6 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
                     } else {
                         fuelRecords.subList(idxA, idxB).sumOf { it.gallons }
                     }
-                    if (deltaKm > 0 && gallonsInCycle > 0.0) {
-                        cycles.add(CalibratedCycle(deltaKm, gallonsInCycle, deltaKm.toDouble() / gallonsInCycle))
-                    }
-                }
-                recA.isReserve && recA.gallons == 0.0 -> {
-                    // Soporte retro-compatible para marcadores sintéticos de reserva con 0 galones
-                    val gallonsInCycle = fuelRecords.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
-                    if (deltaKm > 0 && gallonsInCycle > 0.0) {
-                        cycles.add(CalibratedCycle(deltaKm, gallonsInCycle, deltaKm.toDouble() / gallonsInCycle))
-                    }
-                }
-                recA.isFullTank && recB.isReserve && isLegacySyntheticFixture -> {
-                    val gallonsInCycle = fuelRecords.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
                     if (deltaKm > 0 && gallonsInCycle > 0.0) {
                         cycles.add(CalibratedCycle(deltaKm, gallonsInCycle, deltaKm.toDouble() / gallonsInCycle))
                     }

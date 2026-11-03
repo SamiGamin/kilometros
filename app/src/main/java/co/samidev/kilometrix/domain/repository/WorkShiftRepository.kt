@@ -46,7 +46,10 @@ interface WorkShiftRepository {
         obdSampleCount: Int = 0,
         obdMeanDtMs: Double = 0.0,
         obdIdleSec: Double = 0.0,
-        obdCutoffSec: Double = 0.0
+        obdCutoffSec: Double = 0.0,
+        obdFuelFactorEwma: Double = 1.0,
+        obdFuelFactorStdev: Double = 0.0,
+        obdDistFactorMedian: Double = 1.0
     ): Result<Unit>
 
     /** Agrega una ganancia al array `earnings` del turno (arrayUnion). */

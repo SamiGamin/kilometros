@@ -55,7 +55,7 @@ data class ObdCalibrationFactors(
                 "🟢 OBD calibrado ($band)$iatSuffix"
             }
             hasLiveObdFuel && isFuelCalibrated && !isFuelStable -> {
-                "🟡 Medición OBD inestable (±${"%.1f".format(confidenceBandPct)}%)$iatSuffix"
+                "🟠 Calibración inestable (±${"%.1f".format(confidenceBandPct)}%)$iatSuffix"
             }
             hasLiveObdFuel && !isFuelCalibrated -> {
                 "🟡 OBD en vivo (semilla VE=0,85)$iatSuffix"
@@ -63,6 +63,8 @@ data class ObdCalibrationFactors(
             hasPumpCycleCalibration -> {
                 "🔵 Estimado por ciclo (R_prom)"
             }
+            !hasLiveObdFuel && isFuelCalibrated ->
+                "🔵 OBD calibrado (sin señal actual) · k_fuel=${"%.2f".format(kFuel)}"
             else -> {
                 "⏳ Calibrando 1er ciclo"
             }
@@ -151,6 +153,7 @@ class CalculateObdCalibrationUseCase @Inject constructor() {
 
             val odA = fdA.odometerAtRefuel
             val odB = fdB.odometerAtRefuel
+            if (odA <= 0 || odB <= 0 || odB <= odA) continue
             val deltaKm = odB - odA
             if (deltaKm <= 0) continue
 
@@ -277,7 +280,7 @@ class CalculateObdCalibrationUseCase @Inject constructor() {
             consecutiveJumpPct = consecutiveJumpPct,
             calibratedFuelCycles = cycleSamples.size,
             incompleteCoverageCycles = incompleteCoverageCycles,
-            cycleSamples = cycleSamples,
+            cycleSamples = cycleSamples.takeLast(MAX_EXPOSED_CYCLES),
             kDist = effectiveKDist,
             isDistCalibrated = isDistCalibrated,
             calibratedDistShifts = validShiftRatios.size,
@@ -317,6 +320,7 @@ class CalculateObdCalibrationUseCase @Inject constructor() {
     }
 
     companion object {
+        const val MAX_EXPOSED_CYCLES = 10
         const val MIN_SHIFT_COVERAGE_PCT = 90.0
         const val MAX_SHIFT_GAP_SEC = 60.0
         const val MIN_CYCLE_DISTANCE_COVERAGE_RATIO = 0.90

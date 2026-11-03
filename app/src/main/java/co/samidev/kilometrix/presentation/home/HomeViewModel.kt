@@ -43,8 +43,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -87,7 +89,8 @@ data class HomeUiState(
     val obdAlertMessage: String? = null,
     val obdCalibrationFactors: ObdCalibrationFactors = ObdCalibrationFactors(),
     val fuelSourceLabel: String = "⏳ Calibrando 1er ciclo",
-    val suggestedFinalOdometer: Int = 0
+    val suggestedFinalOdometer: Int = 0,
+    val lastRefuelPricePerLiterCop: Double = 0.0
 )
 
 private data class HomeCoreData(
@@ -103,7 +106,8 @@ private data class HomeCoreData(
 private data class ObdLiveBundle(
     val connectionState: ConnectionState,
     val diagnosticInfo: EcuDiagnosticInfo,
-    val sessionSnapshot: ObdSessionSnapshot
+    val sessionSnapshot: ObdSessionSnapshot,
+    val calibrationFactors: ObdCalibrationFactors
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -168,6 +172,21 @@ class HomeViewModel @Inject constructor(
             } else flowOf(Triple(emptyList(), emptyList(), emptyList()))
         }
 
+    private val calibrationFlow: Flow<ObdCalibrationFactors> = vehicleDataTriple
+        .map { (fuel, _, shifts) -> calculateObdCalibrationUseCase(fuel, shifts) }
+        .distinctUntilChanged()
+
+    private val fuelSummaryFlow: Flow<FuelEfficiencySummary?> = combine(
+        vehicleDataTriple,
+        activeVehicle
+    ) { (fuel, _, _), vehicle ->
+        val summary = calculateFuelEfficiencyUseCase(
+            fuelExpenses = fuel,
+            currentVehicleOdometer = vehicle?.odometer ?: 0
+        )
+        summary.takeIf { it.fillUpsCount > 0 || it.totalGallonsPurchased > 0 }
+    }.distinctUntilChanged()
+
     private val coreDataFlow: Flow<HomeCoreData> = combine(
         userRepository.getUserProfile(),
         activeVehicle,
@@ -181,24 +200,24 @@ class HomeViewModel @Inject constructor(
     private val obdLiveFlow: Flow<ObdLiveBundle> = combine(
         obdRepository.connectionState,
         obdRepository.diagnosticInfo,
-        obdSessionState.snapshot
-    ) { conn, diag, session ->
-        ObdLiveBundle(conn, diag, session)
+        obdSessionState.snapshot,
+        calibrationFlow
+    ) { conn, diag, session, cal ->
+        ObdLiveBundle(conn, diag, session, cal)
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
         coreDataFlow,
         obdLiveFlow,
+        fuelSummaryFlow,
         timeTicker,
-        actionLoading,
-        errorMessage
-    ) { core, obd, now, isLoading, errorMsg ->
+        combine(actionLoading, errorMessage, ::Pair)
+    ) { core, obd, globalFuelSummary, now, (isLoading, errorMsg) ->
         val profile = core.profile
         val vehicle = core.vehicle
         val picoResource = core.picoResource
         val shift = core.shift
         val fuelExpenses = core.fuelExpenses
-        val allShifts = core.allShifts
 
         val userName = profile?.name?.substringBefore(" ") ?: "Conductor"
 
@@ -211,18 +230,29 @@ class HomeViewModel @Inject constructor(
 
         val status = calculatePicoYPlacaUseCase(profile?.city, vehicle, picoResource)
 
-        val currentVehicleOdometer = vehicle?.odometer ?: 0
-        val globalFuelSummary = calculateFuelEfficiencyUseCase(
-            fuelExpenses = fuelExpenses,
-            currentVehicleOdometer = currentVehicleOdometer
-        )
-        val obdCalibration = calculateObdCalibrationUseCase(fuelExpenses, allShifts)
+        val obdCalibration = obd.calibrationFactors.let { cal ->
+            if (cal.isFuelCalibrated) cal
+            else {
+                val persistedKFuel = vehicle?.obdFuelFactorEwma ?: 1.0
+                val persistedKDist = vehicle?.obdDistFactorMedian ?: 1.0
+                val persistedStdev = vehicle?.obdFuelFactorStdev ?: 0.0
+                val hasPersistedCalibration = persistedKFuel != 1.0 || persistedKDist != 1.0
+                cal.copy(
+                    kFuel = persistedKFuel,
+                    obdFuelFactorStdev = persistedStdev,
+                    kDist = persistedKDist,
+                    isFuelCalibrated = hasPersistedCalibration,
+                    calibratedFuelCycles = if (hasPersistedCalibration) 1 else 0
+                )
+            }
+        }
 
         val isObdConnected = obd.connectionState is ConnectionState.Connected && obd.diagnosticInfo.ecuVerified
-        val rPromCalibrated = globalFuelSummary.kmPerGallonAverage
+        val rPromCalibrated = globalFuelSummary?.kmPerGallonAverage
 
-        val lastRefuelPricePerGal = fuelExpenses.firstOrNull()?.fuelDetails?.pricePerGallon?.takeIf { it > 0.0 }
-            ?: (if (globalFuelSummary.totalGallonsPurchased > 0)
+        val lastRefuelPricePerGal = fuelExpenses.maxByOrNull { it.date }
+            ?.fuelDetails?.pricePerGallon?.takeIf { it > 0.0 }
+            ?: (if (globalFuelSummary != null && globalFuelSummary.totalGallonsPurchased > 0)
                 globalFuelSummary.totalSpentCash / globalFuelSummary.totalGallonsPurchased else 0.0)
         // Precio canónico en COP/L para las prioridades OBD-II (Punto 5)
         val lastRefuelPricePerLiter = FuelUnits.pricePerGallonToPricePerLiter(lastRefuelPricePerGal)
@@ -312,9 +342,7 @@ class HomeViewModel @Inject constructor(
             estimatedKmTraveled = estKm,
             estimatedGallonsConsumed = estGallons,
             estimatedCostConsumed = estCost,
-            fuelEfficiencySummary = globalFuelSummary.takeIf {
-                globalFuelSummary.fillUpsCount > 0 || globalFuelSummary.totalGallonsPurchased > 0
-            },
+            fuelEfficiencySummary = globalFuelSummary,
             actionLoading = isLoading,
             errorMessage = errorMsg,
             obdConnectionState = obd.connectionState,
@@ -333,7 +361,8 @@ class HomeViewModel @Inject constructor(
             obdAlertMessage = alertMsg,
             obdCalibrationFactors = obdCalibration,
             fuelSourceLabel = fuelSourceLabel,
-            suggestedFinalOdometer = suggestedFinalOd
+            suggestedFinalOdometer = suggestedFinalOd,
+            lastRefuelPricePerLiterCop = lastRefuelPricePerLiter
         )
     }.stateIn(
         scope = viewModelScope,
@@ -394,12 +423,8 @@ class HomeViewModel @Inject constructor(
         obdRepository.disconnect()
     }
 
-    private fun resolvePricePerLiterCop(): Double {
-        val summary = uiState.value.fuelEfficiencySummary
-        return if (summary != null && summary.totalLiters > 0.0) {
-            summary.totalSpentCash / summary.totalLiters
-        } else 0.0
-    }
+    private fun resolvePricePerLiterCop(): Double =
+        uiState.value.lastRefuelPricePerLiterCop
 
     // ── Funciones de interacción del turno ────────────────────────────────────
 
@@ -471,6 +496,7 @@ class HomeViewModel @Inject constructor(
         val obdMetrics = obdSessionState.snapshot.value.metrics
         val isConnectedAtEnd = uiState.value.isObdConnected
         val finalMetricsForEval = obdMetrics.copy(connectedAtEnd = isConnectedAtEnd)
+        val calFactors = uiState.value.obdCalibrationFactors
 
         viewModelScope.launch {
             actionLoading.value = true
@@ -489,7 +515,10 @@ class HomeViewModel @Inject constructor(
                 obdSampleCount = obdMetrics.sampleCount,
                 obdMeanDtMs = obdMetrics.meanDtMs,
                 obdIdleSec = obdMetrics.idleSec,
-                obdCutoffSec = obdMetrics.cutoffSec
+                obdCutoffSec = obdMetrics.cutoffSec,
+                obdFuelFactorEwma = calFactors.kFuel,
+                obdFuelFactorStdev = calFactors.obdFuelFactorStdev,
+                obdDistFactorMedian = calFactors.kDist
             )
             actionLoading.value = false
             if (result.isSuccess) {

@@ -55,7 +55,10 @@ class VehicleRepositoryImpl @Inject constructor(
                             seguroEnabled = doc.getBoolean("seguroEnabled") ?: false,
                             extinguisherEnabled = doc.getBoolean("extinguisherEnabled") ?: false,
                             lastOilChangeKm = doc.getLong("lastOilChangeKm")?.toInt(),
-                            oilIntervalKm = doc.getLong("oilIntervalKm")?.toInt() ?: 10000
+                            oilIntervalKm = doc.getLong("oilIntervalKm")?.toInt() ?: 10000,
+                            obdFuelFactorEwma = doc.getDouble("obdFuelFactorEwma") ?: 1.0,
+                            obdFuelFactorStdev = doc.getDouble("obdFuelFactorStdev") ?: 0.0,
+                            obdDistFactorMedian = doc.getDouble("obdDistFactorMedian") ?: 1.0
                         )
                     }
                     trySend(vehicles)

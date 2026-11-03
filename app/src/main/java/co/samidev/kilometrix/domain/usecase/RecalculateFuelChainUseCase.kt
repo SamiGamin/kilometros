@@ -1,9 +1,10 @@
 package co.samidev.kilometrix.domain.usecase
 
-import android.util.Log
 import co.samidev.kilometrix.domain.model.ExpenseType
 import co.samidev.kilometrix.domain.model.FuelDetails
+import co.samidev.kilometrix.domain.model.FuelUnit
 import co.samidev.kilometrix.domain.model.VehicleExpense
+import co.samidev.kilometrix.domain.util.FuelUnits
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,7 +40,9 @@ class RecalculateFuelChainUseCase @Inject constructor() {
             val currentOd = if (d.odometerAtRefuel > 0) d.odometerAtRefuel else d.previousOdometer
 
             val gallons = if (d.gallons > 0) d.gallons
-                          else if (d.enteredQuantity > 0 && d.enteredUnit.name == "GALLON") d.enteredQuantity
+                          else if (d.enteredQuantity > 0 && d.enteredUnit == FuelUnit.GALLON) d.enteredQuantity
+                          else if (d.enteredQuantity > 0 && d.enteredUnit == co.samidev.kilometrix.domain.model.FuelUnit.LITER)
+                              FuelUnits.litersToGallons(d.enteredQuantity)
                           else if (d.pricePerGallon > 0 && exp.amount > 0) exp.amount / d.pricePerGallon
                           else 0.0
 
@@ -67,17 +70,16 @@ class RecalculateFuelChainUseCase @Inject constructor() {
             val idxB = milestoneIndices[m + 1]
             val itemA = normalized[idxA]
             val itemB = normalized[idxB]
-            val deltaKm = itemB.od - itemA.od
+            val odA = itemA.od
+            val odB = itemB.od
+            if (odA <= 0 || odB <= 0 || odB <= odA) continue
+            val deltaKm = odB - odA
 
             val gallonsConsumed = when {
                 itemA.details.isFullTank && itemB.details.isFullTank ->
                     normalized.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
                 itemA.details.isReserve && itemB.details.isReserve ->
                     normalized.subList(idxA, idxB).sumOf { it.gallons }
-                itemA.details.isReserve && itemA.gallons == 0.0 ->
-                    normalized.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
-                itemA.details.isFullTank && itemB.details.isReserve && itemB.gallons > 0.0 ->
-                    normalized.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
                 else -> 0.0
             }
 
@@ -132,27 +134,6 @@ class RecalculateFuelChainUseCase @Inject constructor() {
         }
 
         val result = expenses.map { exp -> recalculatedMap[exp.id] ?: exp }
-
-        // ── DEBUG: imprimir últimas 10 tanquedas recalculadas ──────────────────
-        val lastTen = result
-            .filter { it.type == ExpenseType.FUEL }
-            .sortedByDescending { it.date }
-            .take(10)
-
-        Log.d("FUEL_CHAIN", "═══════════ ÚLTIMAS ${lastTen.size} TANQUEDAS (más reciente primero) ═══════════")
-        lastTen.forEachIndexed { i, exp ->
-            val fd = exp.fuelDetails
-            val dateStr = java.text.SimpleDateFormat("dd/MM/yy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(exp.date))
-            Log.d("FUEL_CHAIN", "[$i] $dateStr | " +
-                "od=${fd?.odometerAtRefuel} km | " +
-                "kmTrav=${fd?.kmTraveled} km | " +
-                "gal=${"%.2f".format(fd?.gallons ?: 0.0)} | " +
-                "kmPerGal=${"%.1f".format(fd?.kmPerGallon ?: 0.0)} | " +
-                "tipo=${when { fd?.isFullTank == true -> "LLENO"; fd?.isReserve == true -> "RESERVA"; fd?.isPartial == true -> "PARCIAL"; else -> "?" }} | " +
-                "id=${exp.id.take(8)}"
-            )
-        }
-        Log.d("FUEL_CHAIN", "═══════════════════════════════════════════════════════════════════")
 
         return result
     }

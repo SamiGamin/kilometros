@@ -172,7 +172,10 @@ class WorkShiftRepositoryImpl @Inject constructor(
         obdSampleCount: Int,
         obdMeanDtMs: Double,
         obdIdleSec: Double,
-        obdCutoffSec: Double
+        obdCutoffSec: Double,
+        obdFuelFactorEwma: Double,
+        obdFuelFactorStdev: Double,
+        obdDistFactorMedian: Double
     ): Result<Unit> {
         val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
         return try {
@@ -260,11 +263,19 @@ class WorkShiftRepositoryImpl @Inject constructor(
                 }
             }
 
-            // 3. Odómetro máster del vehículo
+            // 3. Odómetro máster y factores de calibración OBD del vehículo
             if (vehicleId != null && finalOdometer > 0) {
                 val vehicleRef = db.collection("users").document(userId)
                     .collection("vehicles").document(vehicleId)
-                batch.update(vehicleRef, "odometer", finalOdometer)
+                batch.update(
+                    vehicleRef,
+                    mapOf(
+                        "odometer" to finalOdometer,
+                        "obdFuelFactorEwma" to obdFuelFactorEwma,
+                        "obdFuelFactorStdev" to obdFuelFactorStdev,
+                        "obdDistFactorMedian" to obdDistFactorMedian
+                    )
+                )
             }
 
             batch.commit().await()
