@@ -224,7 +224,14 @@ class HomeViewModel @Inject constructor(
             fuelExpenses = fuelExpenses,
             currentVehicleOdometer = currentVehicleOdometer
         )
-        val obdCalibration = obd.calibrationFactors
+        val obdCalibration = obd.calibrationFactors.let { cal ->
+            if (cal.isFuelCalibrated) cal
+            else cal.copy(
+                kFuel = vehicle?.obdFuelFactorEwma ?: 1.0,
+                obdFuelFactorStdev = vehicle?.obdFuelFactorStdev ?: 0.0,
+                kDist = vehicle?.obdDistFactorMedian ?: 1.0
+            )
+        }
 
         val isObdConnected = obd.connectionState is ConnectionState.Connected && obd.diagnosticInfo.ecuVerified
         val rPromCalibrated = globalFuelSummary.kmPerGallonAverage
