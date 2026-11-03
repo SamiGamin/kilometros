@@ -52,3 +52,23 @@ Ninguno bloquea el uso del Polo Track. Todos son mejoras futuras.
 - En períodos con turnos pero sin tanqueos (`totalExpenses == 0.0 && totalEarnings > 0.0`), el flujo de caja no refleja el costo del combustible consumido
 - Impacto: el usuario visualiza dos métricas con significados económicos diferentes para los mismos turnos según la pantalla consultada
 - Fix sugerido: integrar agregación de combustible quemado por turnos en `AnalyticsViewModel` (DT-11) para permitir alternar entre vista de "Flujo de Caja" y vista de "Ganancia Operativa"
+
+## DT-15: Analytics empty state (C4) no se activa si hay gastos no-combustible
+
+- En `AnalyticsScreen.kt` P19 introdujo `if (uiState.totalExpenses == 0.0 && uiState.totalEarnings > 0.0)` para mostrar un hint cuando no hay tanqueos
+- `AnalyticsUiState.totalExpenses` suma TODOS los gastos (FUEL + MAINTENANCE + TOLL + INSURANCE + PARKING + OTHER), no solo combustible
+- Caso que falla: 1 turno de $50.000 + 1 mantenimiento de $80.000, 0 tanqueos → `totalExpenses = 80.000`, `totalEarnings = 50.000` → condición false → empty state NO se muestra aunque la causa real es "sin tanqueos"
+- Impacto: el hint se activa exactamente cuando NO se necesita y se oculta cuando sí
+- Fix sugerido: agregar `fuelExpensesSum: Double` a `AnalyticsUiState` calculado como `filteredExpenses.filter { it.type == ExpenseType.FUEL }.sumOf { it.amount }`, y cambiar la condición a `uiState.fuelExpensesSum == 0.0 && uiState.totalEarnings > 0.0`
+- Bloqueante: ninguno. Requiere tocar `AnalyticsViewModel.kt`, fuera del scope de P19
+- Prioridad: baja (cosmético, no rompe cálculos)
+
+## DT-16: Cilindrada y capacidad de tanque son constantes globales, no campos por vehículo
+
+- `VehicleProfile.DEFAULT_ENGINE_DISPLACEMENT_LITERS = 1.598` (Polo Track)
+- `CalculateFuelEfficiencyUseCase.DEFAULT_TANK_CAPACITY_LITERS = 52.0` (Polo Track)
+- Funcionan correctos mientras solo haya un Polo Track en la app
+- Si algún día se agrega una moto (150cc = 0.150 L, tanque 12 L) o un segundo vehículo, las constantes dan valores incorrectos
+- Impacto: latente, no bloquea. Solo se manifiesta con >1 vehículo de distinta cilindrada
+- Fix sugerido: agregar `engineDisplacementLiters: Double = 1.598` y `tankCapacityLiters: Double = 52.0` a `Vehicle`, persistir en Firestore junto al resto del `Vehicle`, y pasarlos a `VehicleProfile`/`CalculateFuelEfficiencyUseCase` como parámetros
+- Prioridad: baja (solo cuando se agregue otro vehículo)
