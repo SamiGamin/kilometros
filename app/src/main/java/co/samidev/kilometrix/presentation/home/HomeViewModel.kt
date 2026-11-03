@@ -229,7 +229,8 @@ class HomeViewModel @Inject constructor(
         val isObdConnected = obd.connectionState is ConnectionState.Connected && obd.diagnosticInfo.ecuVerified
         val rPromCalibrated = globalFuelSummary.kmPerGallonAverage
 
-        val lastRefuelPricePerGal = fuelExpenses.firstOrNull()?.fuelDetails?.pricePerGallon?.takeIf { it > 0.0 }
+        val lastRefuelPricePerGal = fuelExpenses.maxByOrNull { it.date }
+            ?.fuelDetails?.pricePerGallon?.takeIf { it > 0.0 }
             ?: (if (globalFuelSummary.totalGallonsPurchased > 0)
                 globalFuelSummary.totalSpentCash / globalFuelSummary.totalGallonsPurchased else 0.0)
         // Precio canónico en COP/L para las prioridades OBD-II (Punto 5)
