@@ -20,6 +20,9 @@ import co.samidev.kilometrix.ui.theme.*
 @Composable
 fun HomeMainVehicleShiftCard(
     vehicle: Vehicle?,
+    isObdConnected: Boolean = false,
+    obdLiveRpm: Int? = null,
+    onOpenObdClick: () -> Unit = {},
     onStartShiftClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -54,20 +57,32 @@ fun HomeMainVehicleShiftCard(
                 )
 
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Secondary.copy(alpha = 0.15f)
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isObdConnected) Secondary.copy(alpha = 0.15f) else Color(0xFFFF6B35).copy(alpha = 0.15f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isObdConnected) Secondary.copy(alpha = 0.4f) else Color(0xFFFF6B35).copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("⚡", style = MaterialTheme.typography.labelSmall)
-                        Text(
-                            text = "ACTIVO",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Secondary
-                        )
+                        Text(if (isObdConnected) "🟢" else "🔌", style = MaterialTheme.typography.labelSmall)
+                        TextButton(
+                            onClick = onOpenObdClick,
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.height(20.dp)
+                        ) {
+                            Text(
+                                text = if (isObdConnected) "OBD2 · ${obdLiveRpm ?: "--"} RPM" else "Conectar OBD2",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (isObdConnected) Secondary else Color(0xFFFF6B35)
+                            )
+                        }
                     }
                 }
             }

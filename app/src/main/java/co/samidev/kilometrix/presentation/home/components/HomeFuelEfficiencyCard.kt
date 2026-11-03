@@ -79,10 +79,9 @@ fun HomeFuelEfficiencyCard(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     val kpg = summary.kmPerGallonAverage
                         ?: summary.averageKmPerGallon.takeIf { it > 0.0 }
-                        ?: (if (summary.totalGallonsPurchased > 0 && summary.totalKmTraveled > 0)
-                            summary.totalKmTraveled.toDouble() / summary.totalGallonsPurchased else 0.0)
+                        ?: 0.0
                     Text(
-                        if (kpg > 0.0) "${"%.1f".format(kpg)} km/gal" else "⏳ Acumulando",
+                        if (kpg > 0.0) "${"%.1f".format(kpg)} km/gal" else "⏳ Calibrando",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (kpg > 0.0) Primary else OnSurfaceVariant
@@ -111,6 +110,33 @@ fun HomeFuelEfficiencyCard(
                         )
                         Text("Total recorrido", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     }
+                }
+            }
+
+            // Sonda de capacidad Reserva -> Lleno si se detectó transición no homóloga (Punto 4)
+            if (summary.measuredReserveToFullGallons != null && summary.measuredReserveToFullGallons > 0.0) {
+                Text(
+                    text = "📐 Capacidad útil medida (Reserva → Lleno): ${"%.2f".format(summary.measuredReserveToFullGallons)} gal",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Secondary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            // Prompt explícito cuando el ciclo lleva >7 días o >10 gal en parciales sin cerrar (Punto 9)
+            if (summary.needsCycleClosurePrompt && !summary.cycleClosurePromptMessage.isNullOrBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = SecondaryContainer.copy(alpha = 0.25f),
+                    border = BorderStroke(0.5.dp, Secondary.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = summary.cycleClosurePromptMessage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurface,
+                        modifier = Modifier.padding(10.dp)
+                    )
                 }
             }
         }

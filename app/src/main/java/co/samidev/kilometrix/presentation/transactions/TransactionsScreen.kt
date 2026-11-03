@@ -33,6 +33,7 @@ import co.samidev.kilometrix.domain.model.ShiftStatus
 import co.samidev.kilometrix.domain.model.ShiftType
 import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.domain.model.VehicleExpense
+import co.samidev.kilometrix.domain.util.FuelUnits
 import co.samidev.kilometrix.domain.model.WorkShift
 import co.samidev.kilometrix.ui.theme.*
 import java.text.DecimalFormat
@@ -444,24 +445,27 @@ private fun RecorridosSummaryCard(
             val nonFuelExpenses = allExpenses.filter { it.date in shift.startTime..endTimeLimit && it.type != ExpenseType.FUEL }
                 .sumOf { it.amount }
 
-            val kpg = fuelSummary?.kmPerGallonAverage
-                ?: fuelSummary?.averageKmPerGallon.takeIf { it != null && it > 0.0 }
-                ?: 35.0
+            val kpg = fuelSummary?.kmPerGallonAverage ?: 0.0
 
             val pricePerGal = if (fuelSummary != null && fuelSummary.totalGallonsPurchased > 0.0) {
                 fuelSummary.totalSpentCash / fuelSummary.totalGallonsPurchased
             } else {
-                allExpenses.firstOrNull { it.type == ExpenseType.FUEL }?.fuelDetails?.pricePerGallon ?: 15800.0
+                allExpenses.firstOrNull { it.type == ExpenseType.FUEL }?.fuelDetails?.pricePerGallon ?: 0.0
             }
+            val pricePerLiter = FuelUnits.pricePerGallonToPricePerLiter(pricePerGal)
 
             val costPerKm = fuelSummary?.costPerKmReal.takeIf { it != null && it > 0.0 }
-                ?: (if (kpg > 0.0) pricePerGal / kpg else 0.0)
+                ?: (if (kpg > 0.0 && pricePerGal > 0.0) pricePerGal / kpg else 0.0)
 
-            val fuelBurnedExpense = if (costPerKm > 0.0 && realKm > 0) realKm * costPerKm else 0.0
-            val shiftExp = if (realKm > 0 && fuelBurnedExpense > 0.0) {
+            val fuelBurnedExpense = when {
+                shift.obdFuelLitersRaw > 0.0 && pricePerLiter > 0.0 -> shift.obdFuelLitersRaw * pricePerLiter
+                costPerKm > 0.0 && realKm > 0 -> realKm * costPerKm
+                else -> 0.0
+            }
+            val shiftExp = if (fuelBurnedExpense > 0.0) {
                 nonFuelExpenses + fuelBurnedExpense
             } else {
-                allExpenses.filter { it.date in shift.startTime..endTimeLimit }.sumOf { it.amount }
+                nonFuelExpenses
             }
 
             val shiftEarnings = shift.earnings.sumOf { it.amount }
@@ -584,27 +588,35 @@ private fun ShiftCard(
         val nonFuelExpenses = allExpenses.filter { it.date in shift.startTime..endTimeLimit && it.type != ExpenseType.FUEL }
             .sumOf { it.amount }
 
-        val kpg = fuelSummary?.kmPerGallonAverage
-            ?: fuelSummary?.averageKmPerGallon.takeIf { it != null && it > 0.0 }
-            ?: 35.0
+        val kpg = fuelSummary?.kmPerGallonAverage ?: 0.0
 
         val pricePerGal = if (fuelSummary != null && fuelSummary.totalGallonsPurchased > 0.0) {
             fuelSummary.totalSpentCash / fuelSummary.totalGallonsPurchased
         } else {
-            allExpenses.firstOrNull { it.type == ExpenseType.FUEL }?.fuelDetails?.pricePerGallon ?: 15800.0
+            allExpenses.firstOrNull { it.type == ExpenseType.FUEL }?.fuelDetails?.pricePerGallon ?: 0.0
         }
+        val pricePerLiter = FuelUnits.pricePerGallonToPricePerLiter(pricePerGal)
 
         val costPerKm = fuelSummary?.costPerKmReal.takeIf { it != null && it > 0.0 }
-            ?: (if (kpg > 0.0) pricePerGal / kpg else 0.0)
+            ?: (if (kpg > 0.0 && pricePerGal > 0.0) pricePerGal / kpg else 0.0)
 
-        val gallonsBurned = if (kpg > 0.0 && realKm > 0) realKm.toDouble() / kpg else 0.0
-        val fuelBurnedExpense = if (costPerKm > 0.0 && realKm > 0) realKm * costPerKm else 0.0
+        val obdGallons = FuelUnits.litersToGallons(shift.obdFuelLitersRaw)
 
-        if (realKm > 0 && fuelBurnedExpense > 0.0) {
+        val gallonsBurned = when {
+            obdGallons > 0.0 -> obdGallons
+            kpg > 0.0 && realKm > 0 -> realKm.toDouble() / kpg
+            else -> 0.0
+        }
+        val fuelBurnedExpense = when {
+            shift.obdFuelLitersRaw > 0.0 && pricePerLiter > 0.0 -> shift.obdFuelLitersRaw * pricePerLiter
+            costPerKm > 0.0 && realKm > 0 -> realKm * costPerKm
+            else -> 0.0
+        }
+
+        if (fuelBurnedExpense > 0.0) {
             Triple(nonFuelExpenses + fuelBurnedExpense, gallonsBurned, true)
         } else {
-            val rawExpenses = allExpenses.filter { it.date in shift.startTime..endTimeLimit }.sumOf { it.amount }
-            Triple(rawExpenses, 0.0, false)
+            Triple(nonFuelExpenses, gallonsBurned, false)
         }
     }
 
@@ -1203,14 +1215,18 @@ private fun ExpenseCard(
                         FuelChip("$ ${currencyFmt.format(fd.pricePerGallon.toLong())}/gal", color.copy(alpha = 0.7f))
                     }
                     when {
+                        fd.kmPerGallon > 0.0 ->
+                            FuelChip("✅ ${"%.1f".format(fd.kmPerGallon)} km/gal", Secondary)
                         isLatestFuel ->
                             FuelChip("⏳ Ciclo abierto", OnSurfaceVariant.copy(alpha = 0.6f))
-                        fd.kmPerGallon > 0.0 ->
-                            FuelChip("${"%.1f".format(fd.kmPerGallon)} km/gal", Secondary)
+                        fd.isPartial ->
+                            FuelChip("💧 Acumulando ciclo", OnSurfaceVariant.copy(alpha = 0.7f))
+                        else ->
+                            FuelChip("🔵 Inicio de ciclo", Primary.copy(alpha = 0.8f))
                     }
                 }
 
-                val kmStr = if (!isLatestFuel && fd.kmTraveled > 0) "🛣 ${currencyFmt.format(fd.kmTraveled)} km" else ""
+                val kmStr = if (fd.kmTraveled > 0) "🛣 ${currencyFmt.format(fd.kmTraveled)} km" else ""
                 val odStr = if (fd.odometerAtRefuel > 0) "Odóm: ${currencyFmt.format(fd.odometerAtRefuel)} km" else ""
                 val tankTypeStr = when {
                     fd.isFullTank -> "⛽ Tanque Lleno"
@@ -1317,10 +1333,9 @@ private fun FuelEfficiencyCard(summary: FuelEfficiencySummary) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     val kpg = summary.kmPerGallonAverage
                         ?: summary.averageKmPerGallon.takeIf { it > 0.0 }
-                        ?: (if (summary.totalGallonsPurchased > 0 && summary.totalKmTraveled > 0)
-                            summary.totalKmTraveled.toDouble() / summary.totalGallonsPurchased else 0.0)
+                        ?: 0.0
                     Text(
-                        if (kpg > 0.0) "${"%.1f".format(kpg)} km/gal" else "⏳ Acumulando",
+                        if (kpg > 0.0) "${"%.1f".format(kpg)} km/gal" else "⏳ Calibrando",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (kpg > 0.0) Primary else OnSurfaceVariant
@@ -1349,6 +1364,31 @@ private fun FuelEfficiencyCard(summary: FuelEfficiencySummary) {
                         )
                         Text("Total recorrido", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     }
+                }
+            }
+
+            if (summary.measuredReserveToFullGallons != null && summary.measuredReserveToFullGallons > 0.0) {
+                Text(
+                    text = "📐 Capacidad útil medida (Reserva → Lleno): ${"%.2f".format(summary.measuredReserveToFullGallons)} gal",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Secondary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            if (summary.needsCycleClosurePrompt && !summary.cycleClosurePromptMessage.isNullOrBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = SecondaryContainer.copy(alpha = 0.25f),
+                    border = BorderStroke(0.5.dp, Secondary.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = summary.cycleClosurePromptMessage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurface,
+                        modifier = Modifier.padding(10.dp)
+                    )
                 }
             }
         }

@@ -28,6 +28,18 @@ enum class DataMaturityPhase {
 }
 
 /**
+ * Estado del ciclo de combustible exclusivo (Punto 4).
+ * Solo puede existir un ciclo OPEN a la vez. Si llega un hito no homólogo
+ * (ej. llenado completo cuando había un ciclo abierto en Reserva), el ciclo anterior
+ * pasa a ABANDONED, se registra el capacityProbe si aplica y se abre el nuevo ciclo.
+ */
+enum class FuelCycleStatus {
+    OPEN,
+    CLOSED,
+    ABANDONED
+}
+
+/**
  * Datos específicos para gastos de combustible.
  *
  * Soporta galones como unidad primaria y litros como secundaria.
@@ -112,9 +124,18 @@ data class FuelEfficiencySummary(
     val estimatedRemainingAutonomyKm: Double = 0.0,  // Autonomía proyectada en km
     val estimatedShiftsRemaining: Double = 0.0,      // Autonomía en turnos de trabajo
 
-    // ── 4. ESTADO DE MADUREZ ───────────────────────────────────────────────────
+    // ── 4. ESTADO DE MADUREZ Y CONTROL DE CICLO EXCLUSIVO (Puntos 4 y 9) ───────
     val dataMaturityPhase: DataMaturityPhase = DataMaturityPhase.PHASE_1_CASH_FLOW,
     val fillUpsCount: Int = 0,
+    val activeCycleStatus: FuelCycleStatus = FuelCycleStatus.OPEN,
+    val closedCyclesCount: Int = 0,
+    val abandonedCyclesCount: Int = 0,
+    val measuredReserveToFullGallons: Double? = null, // Capacity probe cuando pasa de Reserva -> Lleno directo
+    val openCycleAnchorType: String? = null,          // "FULL_TANK" o "RESERVE"
+    val openCycleDaysElapsed: Int = 0,
+    val openCycleGallonsAccumulated: Double = 0.0,
+    val needsCycleClosurePrompt: Boolean = false,
+    val cycleClosurePromptMessage: String? = null,
 
     // ── Aliases de retro-compatibilidad ────────────────────────────────────────
     // Permiten que el código existente (TransactionsScreen, etc.) siga compilando

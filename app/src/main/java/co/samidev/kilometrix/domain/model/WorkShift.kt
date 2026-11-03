@@ -18,7 +18,20 @@ data class WorkShift(
     val status: ShiftStatus = ShiftStatus.ACTIVE,
     val pauseStartTime: Long? = null,       // Tiempo en que se pausó la última vez
     val earnings: List<ShiftEarning> = emptyList(),
-    val type: ShiftType = ShiftType.WORK
+    val type: ShiftType = ShiftType.WORK,
+    // ── Telemetría y Cobertura OBD-II en Litros/Km canónicos (Puntos 2, 5, 6, 10) ──
+    val obdDistanceKm: Double = 0.0,        // Distancia medida por integración OBD-II (010D)
+    val obdFuelLitersRaw: Double = 0.0,     // Litros crudos medidos por Speed-Density/MAF OBD-II
+    val obdCoveragePct: Double = 0.0,       // % del tiempo activo del turno cubierto sin gaps (>90% requerido)
+    val obdMaxGapSec: Double = 0.0,         // Mayor gap sin muestras durante el turno (<=60s requerido)
+    val obdGapCount: Int = 0,               // Número de interrupciones (dt > 2.0s)
+    val obdValid: Boolean = false,          // true si cumple regla estricta de cobertura
+    val obdConnectedAtStart: Boolean = false,
+    val obdConnectedAtEnd: Boolean = false,
+    val obdSampleCount: Int = 0,            // Total de muestras integradas en el turno
+    val obdMeanDtMs: Double = 0.0,          // Intervalo promedio entre muestras (ms)
+    val obdIdleSec: Double = 0.0,           // Segundos acumulados en régimen de ralentí
+    val obdCutoffSec: Double = 0.0          // Segundos acumulados en corte de inyección (DFCO)
 )
 
 enum class ShiftStatus { ACTIVE, PAUSED, ENDED }

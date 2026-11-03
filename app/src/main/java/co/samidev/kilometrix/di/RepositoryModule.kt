@@ -57,7 +57,21 @@ abstract class RepositoryModule {
         appUpdateRepositoryImpl: co.samidev.kilometrix.data.repository.AppUpdateRepositoryImpl
     ): co.samidev.kilometrix.domain.repository.AppUpdateRepository
 
+    @Binds
+    @Singleton
+    abstract fun bindObdRepository(
+        obdRepositoryImpl: co.samidev.kilometrix.obd.data.ObdRepositoryImpl
+    ): co.samidev.kilometrix.obd.data.ObdRepository
+
     companion object {
+        @Provides
+        @Singleton
+        fun provideBluetoothManager(
+            @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context
+        ): android.bluetooth.BluetoothManager {
+            return context.getSystemService(android.bluetooth.BluetoothManager::class.java)
+        }
+
         @Provides
         @Singleton
         fun provideFirebaseFirestore(): FirebaseFirestore {

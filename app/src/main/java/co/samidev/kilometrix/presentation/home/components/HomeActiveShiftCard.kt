@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.samidev.kilometrix.domain.model.ShiftStatus
 import co.samidev.kilometrix.domain.model.ShiftType
+import co.samidev.kilometrix.obd.domain.ObdFaultType
 import co.samidev.kilometrix.presentation.home.HomeUiState
 import co.samidev.kilometrix.ui.theme.*
 
@@ -28,6 +29,7 @@ fun HomeActiveShiftCard(
     onTogglePauseResume: () -> Unit,
     onOpenAddEarning: () -> Unit,
     onFinishShift: () -> Unit,
+    onOpenObdClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val shift = uiState.activeShift ?: return
@@ -40,7 +42,8 @@ fun HomeActiveShiftCard(
             .background(SurfaceContainerLow)
             .border(
                 1.dp,
-                if (isPaused) Color(0xFFFF9800).copy(alpha = 0.4f)
+                if (uiState.obdDisconnectionAlert) MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                else if (isPaused) Color(0xFFFF9800).copy(alpha = 0.4f)
                 else if (shift.type == ShiftType.PERSONAL) Primary.copy(alpha = 0.3f)
                 else Secondary.copy(alpha = 0.3f),
                 RoundedCornerShape(20.dp)
@@ -48,6 +51,72 @@ fun HomeActiveShiftCard(
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Banner de Alerta diferenciada: BLE Caído (Adaptador) vs ECU Muda (NO DATA) (Punto 2)
+        if (uiState.obdDisconnectionAlert) {
+            val isEcuSilent = uiState.obdFaultType == ObdFaultType.ECU_SILENT
+            val alertColor = if (isEcuSilent) Color(0xFFFF9800) else MaterialTheme.colorScheme.error
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = alertColor.copy(alpha = 0.15f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, alertColor),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isEcuSilent) "🚗 ECU MUDA (ADAPTADOR CONECTADO · NO DATA)"
+                            else "🔌 ADAPTADOR BLE DESCONECTADO",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = alertColor
+                        )
+                        Text(
+                            text = uiState.obdAlertMessage
+                                ?: if (isEcuSilent) "El adaptador responde pero la ECU no entrega datos (>5 lecturas). Verifica contacto/motor."
+                                else "Se perdió el enlace Bluetooth con el adaptador ELM327.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = OnSurface
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = onOpenObdClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = alertColor),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = if (isEcuSilent) "🔍 Diagnóstico" else "🔌 Reconectar",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Alerta de deriva de distancia |k_dist - 1| > 5 % (Punto 7)
+        if (uiState.obdCalibrationFactors.kDistDriftAlert &&
+            !uiState.obdCalibrationFactors.kDistDriftMessage.isNullOrBlank()
+        ) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0xFFFFB74D).copy(alpha = 0.14f),
+                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFFFFB74D).copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = uiState.obdCalibrationFactors.kDistDriftMessage,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFFFB74D),
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        }
         // Header de Estado LIVE / PAUSA
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -130,27 +199,68 @@ fun HomeActiveShiftCard(
 
         HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
 
-        // Métricas de Consumo Estimado
-        Row(
+        // Métricas de Consumo Real OBD-II / Calibrado
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(SurfaceContainerHigh)
                 .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceAround
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ShiftStatItem(
-                label = "Recorrido est.",
-                value = "${"%.1f".format(uiState.estimatedKmTraveled)} km"
-            )
-            ShiftStatItem(
-                label = "Combustible",
-                value = "~${"%.1f".format(uiState.estimatedGallonsConsumed)} gal"
-            )
-            ShiftStatItem(
-                label = "Costo est.",
-                value = "$ ${homeCurrencyFmt.format(uiState.estimatedCostConsumed.toLong())}"
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "📡 ${uiState.fuelSourceLabel}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (uiState.isObdConnected) Secondary else Color(0xFFFFB74D),
+                    fontWeight = FontWeight.Bold
+                )
+                Surface(
+                    onClick = onOpenObdClick,
+                    shape = RoundedCornerShape(8.dp),
+                    color = SurfaceContainerLow
+                ) {
+                    val regimeTag = when {
+                        uiState.obdIsFuelCutOffActive -> " · Corte DFCO"
+                        uiState.obdIsIdleActive -> " · Ralentí"
+                        else -> ""
+                    }
+                    Text(
+                        text = if (uiState.isObdConnected) {
+                            "${uiState.obdLiveRpm ?: 0} RPM · ${uiState.obdLiveSpeedKph ?: 0} km/h · " +
+                                "${"%.2f".format(uiState.obdInstantLitersPerHour ?: 0.0)} L/h · " +
+                                "Cob. ${uiState.obdCoveragePct.toInt()}%$regimeTag"
+                        } else {
+                            "🔌 Estado OBD-II (Cob. ${uiState.obdCoveragePct.toInt()}%)"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                ShiftStatItem(
+                    label = "Recorrido OBD",
+                    value = "${"%.2f".format(uiState.estimatedKmTraveled)} km"
+                )
+                ShiftStatItem(
+                    label = "Combustible",
+                    value = "${"%.2f".format(uiState.estimatedGallonsConsumed)} gal"
+                )
+                ShiftStatItem(
+                    label = "Costo comb.",
+                    value = "$ ${homeCurrencyFmt.format(uiState.estimatedCostConsumed.toLong())}"
+                )
+            }
         }
 
         // Ganancias por App (solo para recorridos de Trabajo)

@@ -20,11 +20,13 @@ fun EndShiftDialog(
     shift: WorkShift?,
     elapsedMs: Long,
     totalEarnings: Double,
+    suggestedFinalOdometer: Int = 0,
     onDismiss: () -> Unit,
     onConfirm: (finalOdometer: Int) -> Unit
 ) {
     val initOd = shift?.initialOdometer ?: 0
-    var finalOdText by remember { mutableStateOf("") }
+    val initialText = if (suggestedFinalOdometer > initOd) suggestedFinalOdometer.toString() else ""
+    var finalOdText by remember(suggestedFinalOdometer, initOd) { mutableStateOf(initialText) }
     val finalOd = finalOdText.toIntOrNull() ?: 0
     val diffKm = finalOd - initOd
     val isExaggerated = diffKm > 1000 || finalOd > 1_500_000
@@ -48,7 +50,7 @@ fun EndShiftDialog(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Para cerrar tu recorrido, ingresa el odómetro final de tu vehículo:",
+                text = "Confirma el odómetro final del tablero de tu vehículo (pre-calculado con los km medidos por OBD-II para calibración cruzada):",
                 style = MaterialTheme.typography.bodyMedium
             )
 

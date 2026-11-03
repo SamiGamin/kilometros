@@ -22,6 +22,9 @@ import co.samidev.kilometrix.ui.theme.*
 @Composable
 fun StartShiftDialog(
     defaultOdometer: Int,
+    isObdConnected: Boolean = false,
+    obdLiveRpm: Int? = null,
+    onConnectObdClick: () -> Unit = {},
     onDismiss: () -> Unit,
     onConfirm: (odometer: Int, type: ShiftType) -> Unit
 ) {
@@ -122,13 +125,59 @@ fun StartShiftDialog(
             OutlinedTextField(
                 value = odText,
                 onValueChange = { if (it.all { char -> char.isDigit() }) odText = it },
-                label = { Text("Odómetro inicial (km)") },
+                label = { Text("Odómetro inicial de tablero (km)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 visualTransformation = ThousandSeparatorVisualTransformation(),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            // Tarjeta de verificación obligatoria OBD-II
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isObdConnected) Secondary.copy(alpha = 0.12f) else Color(0xFFFF6B35).copy(alpha = 0.12f),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (isObdConnected) Secondary.copy(alpha = 0.4f) else Color(0xFFFF6B35).copy(alpha = 0.5f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isObdConnected) "✅ OBD-II Conectado a la ECU"
+                            else "⚠️ OBD-II Requerido para Iniciar",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isObdConnected) Secondary else Color(0xFFFF6B35)
+                        )
+                        Text(
+                            text = if (isObdConnected) "Motor en línea (${obdLiveRpm ?: "--"} RPM) · Listo para medir"
+                            else "Conecta el adaptador BLE al vehículo antes de arrancar.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OnSurfaceVariant
+                        )
+                    }
+                    if (!isObdConnected) {
+                        Button(
+                            onClick = onConnectObdClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B35)),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("🔌 Conectar", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
@@ -140,11 +189,11 @@ fun StartShiftDialog(
                 Button(
                     onClick = {
                         val od = odText.toIntOrNull() ?: 0
-                        if (od > 0) {
+                        if (od > 0 && isObdConnected) {
                             onConfirm(od, selectedType)
                         }
                     },
-                    enabled = (odText.toIntOrNull() ?: 0) > 0
+                    enabled = (odText.toIntOrNull() ?: 0) > 0 && isObdConnected
                 ) {
                     Text("Iniciar Recorrido")
                 }

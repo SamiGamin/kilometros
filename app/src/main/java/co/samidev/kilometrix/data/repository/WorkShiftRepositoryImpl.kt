@@ -158,7 +158,22 @@ class WorkShiftRepositoryImpl @Inject constructor(
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    override suspend fun endShift(shiftId: String, finalOdometer: Int): Result<Unit> {
+    override suspend fun endShift(
+        shiftId: String,
+        finalOdometer: Int,
+        obdDistanceKm: Double,
+        obdFuelLitersRaw: Double,
+        obdCoveragePct: Double,
+        obdMaxGapSec: Double,
+        obdGapCount: Int,
+        obdValid: Boolean,
+        obdConnectedAtStart: Boolean,
+        obdConnectedAtEnd: Boolean,
+        obdSampleCount: Int,
+        obdMeanDtMs: Double,
+        obdIdleSec: Double,
+        obdCutoffSec: Double
+    ): Result<Unit> {
         val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
         return try {
             val docRef = shiftsCol(userId).document(shiftId)
@@ -182,13 +197,25 @@ class WorkShiftRepositoryImpl @Inject constructor(
 
             val batch = db.batch()
 
-            // 1. Finalizar turno
+            // 1. Finalizar turno (incluyendo telemetría, cobertura y diagnóstico OBD-II del recorrido)
             batch.update(
                 docRef,
                 mapOf(
                     "status" to ShiftStatus.ENDED.name,
                     "endTime" to endTimeMillis,
-                    "finalOdometer" to finalOdometer
+                    "finalOdometer" to finalOdometer,
+                    "obdDistanceKm" to obdDistanceKm,
+                    "obdFuelLitersRaw" to obdFuelLitersRaw,
+                    "obdCoveragePct" to obdCoveragePct,
+                    "obdMaxGapSec" to obdMaxGapSec,
+                    "obdGapCount" to obdGapCount,
+                    "obdValid" to obdValid,
+                    "obdConnectedAtStart" to obdConnectedAtStart,
+                    "obdConnectedAtEnd" to obdConnectedAtEnd,
+                    "obdSampleCount" to obdSampleCount,
+                    "obdMeanDtMs" to obdMeanDtMs,
+                    "obdIdleSec" to obdIdleSec,
+                    "obdCutoffSec" to obdCutoffSec
                 )
             )
 
@@ -500,7 +527,19 @@ private fun DocumentSnapshot.toWorkShift(): WorkShift? {
             earnings = earningsList,
             type = try {
                 ShiftType.valueOf(getString("type") ?: "WORK")
-            } catch (_: IllegalArgumentException) { ShiftType.WORK }
+            } catch (_: IllegalArgumentException) { ShiftType.WORK },
+            obdDistanceKm = getDouble("obdDistanceKm") ?: 0.0,
+            obdFuelLitersRaw = getDouble("obdFuelLitersRaw") ?: 0.0,
+            obdCoveragePct = getDouble("obdCoveragePct") ?: 0.0,
+            obdMaxGapSec = getDouble("obdMaxGapSec") ?: 0.0,
+            obdGapCount = getLong("obdGapCount")?.toInt() ?: 0,
+            obdValid = getBoolean("obdValid") ?: false,
+            obdConnectedAtStart = getBoolean("obdConnectedAtStart") ?: false,
+            obdConnectedAtEnd = getBoolean("obdConnectedAtEnd") ?: false,
+            obdSampleCount = getLong("obdSampleCount")?.toInt() ?: 0,
+            obdMeanDtMs = getDouble("obdMeanDtMs") ?: 0.0,
+            obdIdleSec = getDouble("obdIdleSec") ?: 0.0,
+            obdCutoffSec = getDouble("obdCutoffSec") ?: 0.0
         )
     } catch (_: Exception) { null }
 }

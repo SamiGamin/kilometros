@@ -330,4 +330,108 @@ class CalculateFuelEfficiencyUseCaseTest {
         assertEquals(75_000.0, result.totalSpentCash, 1.0)
         assertEquals(5.0, result.totalGallonsPurchased, 0.001)
     }
+
+    // ── TEST 9: Ciclo Lleno a Lleno con parcial intermedia y Tanque Virtual ───
+
+    @Test
+    fun `ciclo lleno a lleno con parcial intermedia calcula rendimiento exacto y tanque virtual`() {
+        val lleno1 = fuelExpense(
+            odometer = 10000, gallons = 10.0, pricePerGallon = 15000.0, isFullTank = true, dateOffset = 1000L
+        )
+        val parcial = fuelExpense(
+            odometer = 10200, previousOdometer = 10000, gallons = 3.0, pricePerGallon = 15000.0, isPartial = true, dateOffset = 2000L
+        )
+        val lleno2 = fuelExpense(
+            odometer = 10450, previousOdometer = 10200, gallons = 7.0, pricePerGallon = 15000.0, isFullTank = true, dateOffset = 3000L
+        )
+
+        // ΔK = 10450 - 10000 = 450 km
+        // Galones consumidos en Lleno->Lleno = parcial (3) + lleno2 (7) = 10 gal -> 45.0 km/gal
+        val result = useCase(
+            fuelExpenses = listOf(lleno1, parcial, lleno2),
+            currentVehicleOdometer = 10540, // 90 km recorridos después del último lleno (= 2 gal quemados)
+            tankCapacityLiters = 52.0       // ~13.737 gal
+        )
+
+        assertEquals(DataMaturityPhase.PHASE_2_CALIBRATING, result.dataMaturityPhase)
+        assertNotNull(result.kmPerGallonAverage)
+        assertEquals(45.0, result.kmPerGallonAverage!!, 0.01)
+
+        // Tanque virtual: lleno a 52 L (13.737 gal) menos 2.0 gal quemados en 90 km = ~11.737 gal
+        val expectedRemainingGal = (52.0 / CalculateFuelEfficiencyUseCase.LITERS_PER_GALLON) - 2.0
+        assertEquals(expectedRemainingGal, result.virtualTankRemainingGallons, 0.05)
+    }
+
+    // ── TEST 10: Ciclo Reserva a Reserva real (con compra en hito A) ──────────
+
+    @Test
+    fun `ciclo reserva a reserva real calcula galones desde hito inicial sin requerir lleno`() {
+        val reserva1 = fuelExpense(
+            odometer = 20000, gallons = 8.0, pricePerGallon = 15000.0, isReserve = true, dateOffset = 1000L
+        )
+        val parcial = fuelExpense(
+            odometer = 20180, previousOdometer = 20000, gallons = 2.0, pricePerGallon = 15000.0, isPartial = true, dateOffset = 2000L
+        )
+        val reserva2 = fuelExpense(
+            odometer = 20350, previousOdometer = 20180, gallons = 6.0, pricePerGallon = 15000.0, isReserve = true, dateOffset = 3000L
+        )
+
+        // ΔK = 20350 - 20000 = 350 km
+        // Galones quemados entre reserva1 y reserva2 = reserva1 (8) + parcial (2) = 10 gal -> 35.0 km/gal
+        // Y en reserva2 entraron 6 galones nuevos sobre reserva para el siguiente ciclo
+        val result = useCase(
+            fuelExpenses = listOf(reserva1, parcial, reserva2),
+            currentVehicleOdometer = 20420 // 70 km después de reserva2 (= 2 gal quemados de los 6 gal nuevos)
+        )
+
+        assertEquals(35.0, result.kmPerGallonAverage!!, 0.01)
+        assertEquals(4.0, result.virtualTankRemainingGallons, 0.05)
+    }
+
+    // ── TEST 11: Transición no homóloga Reserva -> Lleno marca ABANDONED y capacityProbe (Punto 4) ──
+
+    @Test
+    fun `transicion no homologa reserva a lleno abandona ciclo anterior y registra capacityProbe sin duplicar galones`() {
+        val reservaInicial = fuelExpense(
+            odometer = 30000, gallons = 4.0, pricePerGallon = 15000.0, isReserve = true, dateOffset = 1000L
+        )
+        // A mitad del ciclo de reserva, el conductor decide llenar el tanque completo:
+        val llenoMitad = fuelExpense(
+            odometer = 30120, previousOdometer = 30000, gallons = 10.5, pricePerGallon = 15000.0, isFullTank = true, dateOffset = 2000L
+        )
+        // Luego cierra un ciclo homólogo Lleno -> Lleno:
+        val llenoCierre = fuelExpense(
+            odometer = 30520, previousOdometer = 30120, gallons = 10.0, pricePerGallon = 15000.0, isFullTank = true, dateOffset = 3000L
+        )
+
+        val result = useCase(listOf(reservaInicial, llenoMitad, llenoCierre))
+
+        // 1 ciclo abandonado (Reserva -> Lleno) y 1 ciclo cerrado válido (Lleno -> Lleno: 400 km / 10 gal = 40 km/gal)
+        assertEquals(1, result.abandonedCyclesCount)
+        assertEquals(1, result.closedCyclesCount)
+        assertEquals(40.0, result.kmPerGallonAverage!!, 0.01)
+        assertNotNull("Debe registrar el capacityProbe al pasar de Reserva a Lleno", result.measuredReserveToFullGallons)
+        assertEquals(10.5, result.measuredReserveToFullGallons!!, 0.01)
+    }
+
+    // ── TEST 12: Prompt de cierre cuando acumula >10 gal en parciales sin cerrar ciclo (Punto 9) ──
+
+    @Test
+    fun `ciclo abierto con mas de 10 galones en parciales activa prompt de cierre`() {
+        val llenoInicial = fuelExpense(
+            odometer = 40000, gallons = 12.0, pricePerGallon = 15000.0, isFullTank = true, dateOffset = 1000L
+        )
+        val parcial1 = fuelExpense(
+            odometer = 40250, previousOdometer = 40000, gallons = 6.0, pricePerGallon = 15000.0, isPartial = true, dateOffset = 2000L
+        )
+        val parcial2 = fuelExpense(
+            odometer = 40500, previousOdometer = 40250, gallons = 5.5, pricePerGallon = 15000.0, isPartial = true, dateOffset = 3000L
+        )
+
+        val result = useCase(listOf(llenoInicial, parcial1, parcial2))
+
+        assertTrue("Debe activar prompt al superar 10 galones en parciales sin cerrar", result.needsCycleClosurePrompt)
+        assertNotNull(result.cycleClosurePromptMessage)
+        assertEquals(11.5, result.openCycleGallonsAccumulated, 0.01)
+    }
 }

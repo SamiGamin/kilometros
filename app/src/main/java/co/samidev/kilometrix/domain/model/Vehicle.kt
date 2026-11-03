@@ -25,7 +25,11 @@ data class Vehicle(
     val seguroEnabled: Boolean = false,
     val extinguisherEnabled: Boolean = false,
     val lastOilChangeKm: Int? = null,
-    val oilIntervalKm: Int = 10000
+    val oilIntervalKm: Int = 10000,
+    // ── Calibración OBD-II del vehículo (Punto 1 y 7) ──────────────────────────
+    val obdFuelFactorEwma: Double = 1.0,
+    val obdFuelFactorStdev: Double = 0.0,
+    val obdDistFactorMedian: Double = 1.0
 ) {
     val nextOilChangeKm: Int
         get() = (lastOilChangeKm ?: 0) + oilIntervalKm

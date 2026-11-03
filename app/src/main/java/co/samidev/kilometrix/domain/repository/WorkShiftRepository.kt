@@ -29,10 +29,25 @@ interface WorkShiftRepository {
     suspend fun resumeShift(shiftId: String): Result<Unit>
 
     /**
-     * Finaliza el turno con el odómetro final.
+     * Finaliza el turno con el odómetro final y las métricas acumuladas por OBD-II.
      * Registra [endTime] y cambia el estado a ENDED.
      */
-    suspend fun endShift(shiftId: String, finalOdometer: Int): Result<Unit>
+    suspend fun endShift(
+        shiftId: String,
+        finalOdometer: Int,
+        obdDistanceKm: Double = 0.0,
+        obdFuelLitersRaw: Double = 0.0,
+        obdCoveragePct: Double = 0.0,
+        obdMaxGapSec: Double = 0.0,
+        obdGapCount: Int = 0,
+        obdValid: Boolean = false,
+        obdConnectedAtStart: Boolean = false,
+        obdConnectedAtEnd: Boolean = false,
+        obdSampleCount: Int = 0,
+        obdMeanDtMs: Double = 0.0,
+        obdIdleSec: Double = 0.0,
+        obdCutoffSec: Double = 0.0
+    ): Result<Unit>
 
     /** Agrega una ganancia al array `earnings` del turno (arrayUnion). */
     suspend fun addEarning(shiftId: String, earning: ShiftEarning): Result<Unit>

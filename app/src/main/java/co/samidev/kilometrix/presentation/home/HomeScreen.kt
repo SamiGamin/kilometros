@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import co.samidev.kilometrix.domain.model.ShiftType
+import co.samidev.kilometrix.obd.presentation.ObdConnectionBottomSheet
 import co.samidev.kilometrix.presentation.components.AddEarningBottomSheet
 import co.samidev.kilometrix.presentation.home.components.*
 
@@ -24,12 +25,15 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val scannedDevices by viewModel.scannedDevices.collectAsState()
+    val isScanningObd by viewModel.isScanningObd.collectAsState()
 
     var showStartShiftDialog by remember { mutableStateOf(false) }
     var showEndShiftDialog by remember { mutableStateOf(false) }
     var showAddEarningDialog by remember { mutableStateOf(false) }
     var showNoEarningsConfirm by remember { mutableStateOf(false) }
     var pendingEndShiftAfterEarning by remember { mutableStateOf(false) }
+    var showObdSheet by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -57,6 +61,9 @@ fun HomeScreen(
             // Estado REPOSO: Tarjeta Unificada de Vehículo Activo + Iniciar Recorrido
             HomeMainVehicleShiftCard(
                 vehicle = uiState.activeVehicle,
+                isObdConnected = uiState.isObdConnected,
+                obdLiveRpm = uiState.obdLiveRpm,
+                onOpenObdClick = { showObdSheet = true },
                 onStartShiftClick = { showStartShiftDialog = true },
                 modifier = Modifier
                     .alpha(c1Alpha)
@@ -82,7 +89,8 @@ fun HomeScreen(
                         } else {
                             showEndShiftDialog = true
                         }
-                    }
+                    },
+                    onOpenObdClick = { showObdSheet = true }
                 )
             }
         }
@@ -126,11 +134,33 @@ fun HomeScreen(
     if (showStartShiftDialog) {
         StartShiftDialog(
             defaultOdometer = uiState.activeVehicle?.odometer ?: 0,
+            isObdConnected = uiState.isObdConnected,
+            obdLiveRpm = uiState.obdLiveRpm,
+            onConnectObdClick = {
+                showStartShiftDialog = false
+                showObdSheet = true
+            },
             onDismiss = { showStartShiftDialog = false },
             onConfirm = { od, type ->
                 viewModel.startShift(od, type)
                 showStartShiftDialog = false
             }
+        )
+    }
+
+    // 1b. Panel de Conexión y Diagnóstico OBD-II BLE
+    if (showObdSheet) {
+        ObdConnectionBottomSheet(
+            connectionState = uiState.obdConnectionState,
+            diagnosticInfo = uiState.obdDiagnosticInfo,
+            scannedDevices = scannedDevices,
+            isScanning = isScanningObd,
+            disconnectionAlertMessage = uiState.obdAlertMessage,
+            onStartScan = { viewModel.startObdScan() },
+            onStopScan = { viewModel.stopObdScan() },
+            onSelectDevice = { viewModel.connectObdDevice(it) },
+            onDisconnect = { viewModel.disconnectObd() },
+            onDismiss = { showObdSheet = false }
         )
     }
 
@@ -185,6 +215,7 @@ fun HomeScreen(
             shift = uiState.activeShift,
             elapsedMs = uiState.shiftElapsedMs,
             totalEarnings = uiState.shiftTotalEarnings,
+            suggestedFinalOdometer = uiState.suggestedFinalOdometer,
             onDismiss = { showEndShiftDialog = false },
             onConfirm = { finalOd ->
                 viewModel.endShift(finalOd)
