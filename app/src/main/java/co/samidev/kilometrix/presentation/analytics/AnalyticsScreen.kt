@@ -115,21 +115,36 @@ fun AnalyticsScreen(viewModel: AnalyticsViewModel = hiltViewModel()) {
                 .padding(20.dp)
         ) {
             Column {
-                Text("Ganancia Neta", style = MaterialTheme.typography.labelSmall, color = Secondary)
+                Text("Flujo de Caja Neto", style = MaterialTheme.typography.labelSmall, color = Secondary)
                 Text("$ ${currencyFmt.format(uiState.netProfit.toLong())}", style = MaterialTheme.typography.displayLarge, color = Secondary)
+                Text(
+                    text = "Solo dinero que entró y salió: ingresos − compras de combustible − gastos registrados.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Secondary.copy(alpha = 0.75f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
+        }
+
+        if (uiState.totalExpenses == 0.0 && uiState.totalEarnings > 0.0) {
+            Text(
+                text = "💡 Aún no registras tanqueos en este período. Cuando registres uno, el flujo de caja incluirá el costo real de combustible.",
+                style = MaterialTheme.typography.labelSmall,
+                color = OnSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
 
         // Gross Earnings & Expenses
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MetricCard(
-                label = "Ingresos Brutos",
+                label = "Ingresos Totales",
                 value = "$ ${currencyFmt.format(uiState.totalEarnings.toLong())}",
                 color = Primary,
                 modifier = Modifier.weight(1f)
             )
             MetricCard(
-                label = "Gastos",
+                label = "Gastos Registrados",
                 value = "$ ${currencyFmt.format(uiState.totalExpenses.toLong())}",
                 color = Error,
                 modifier = Modifier.weight(1f)
@@ -139,7 +154,22 @@ fun AnalyticsScreen(viewModel: AnalyticsViewModel = hiltViewModel()) {
         // Analytics metrics
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MetricCard("Km Recorridos", "${uiState.kmDriven} km", OnSurface, modifier = Modifier.weight(1f))
-            MetricCard("Ganancia / Km", "$ ${currencyFmt.format(uiState.earningsPerKm.toLong())}", OnSurface, modifier = Modifier.weight(1f))
+            MetricCard("Flujo / Km", "$ ${currencyFmt.format(uiState.earningsPerKm.toLong())}", OnSurface, modifier = Modifier.weight(1f))
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(SurfaceContainerLow)
+                .border(0.5.dp, OutlineVariant.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                .padding(12.dp)
+        ) {
+            Text(
+                text = "ℹ️ El consumo real por telemetría OBD y la ganancia operativa por turno se ven en Inicio → tarjeta del turno activo.",
+                style = MaterialTheme.typography.labelSmall,
+                color = OnSurfaceVariant
+            )
         }
 
         // Bar Chart
