@@ -261,13 +261,6 @@ class CalculateFuelEfficiencyUseCase @Inject constructor() {
                         cycles.add(CalibratedCycle(deltaKm, gallonsInCycle, deltaKm.toDouble() / gallonsInCycle))
                     }
                 }
-                recA.isReserve && recA.gallons == 0.0 -> {
-                    // Soporte retro-compatible para marcadores sintéticos de reserva con 0 galones
-                    val gallonsInCycle = fuelRecords.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
-                    if (deltaKm > 0 && gallonsInCycle > 0.0) {
-                        cycles.add(CalibratedCycle(deltaKm, gallonsInCycle, deltaKm.toDouble() / gallonsInCycle))
-                    }
-                }
                 recA.isReserve && recB.isFullTank -> {
                     // Transición no homóloga Reserva -> Lleno:
                     // Se abandona el ciclo de reserva abierto, se registra capacityProbe y se abre ciclo Lleno en B.

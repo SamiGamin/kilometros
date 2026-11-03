@@ -435,4 +435,14 @@ class CalculateFuelEfficiencyUseCaseTest {
         assertNotNull(result.cycleClosurePromptMessage)
         assertEquals(11.5, result.openCycleGallonsAccumulated, 0.01)
     }
+
+    @Test
+    fun `reserva con cero galones luego tanque lleno marca ABANDONED y no cierra ciclo`() {
+        val reserva0 = fuelExpense(odometer = 50000, gallons = 0.0, pricePerGallon = 0.0, isReserve = true, dateOffset = 1000L)
+        val lleno = fuelExpense(odometer = 50500, previousOdometer = 50000, gallons = 10.0, pricePerGallon = 15000.0, isFullTank = true, dateOffset = 2000L)
+        val result = useCase(listOf(reserva0, lleno))
+        assertEquals(1, result.abandonedCyclesCount)
+        assertEquals(0, result.closedCyclesCount)
+        assertNull(result.kmPerGallonAverage)  // Fase 1, sin ciclos cerrados
+    }
 }
