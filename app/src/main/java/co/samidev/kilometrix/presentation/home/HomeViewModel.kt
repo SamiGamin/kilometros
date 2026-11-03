@@ -232,11 +232,19 @@ class HomeViewModel @Inject constructor(
 
         val obdCalibration = obd.calibrationFactors.let { cal ->
             if (cal.isFuelCalibrated) cal
-            else cal.copy(
-                kFuel = vehicle?.obdFuelFactorEwma ?: 1.0,
-                obdFuelFactorStdev = vehicle?.obdFuelFactorStdev ?: 0.0,
-                kDist = vehicle?.obdDistFactorMedian ?: 1.0
-            )
+            else {
+                val persistedKFuel = vehicle?.obdFuelFactorEwma ?: 1.0
+                val persistedKDist = vehicle?.obdDistFactorMedian ?: 1.0
+                val persistedStdev = vehicle?.obdFuelFactorStdev ?: 0.0
+                val hasPersistedCalibration = persistedKFuel != 1.0 || persistedKDist != 1.0
+                cal.copy(
+                    kFuel = persistedKFuel,
+                    obdFuelFactorStdev = persistedStdev,
+                    kDist = persistedKDist,
+                    isFuelCalibrated = hasPersistedCalibration,
+                    calibratedFuelCycles = if (hasPersistedCalibration) 1 else 0
+                )
+            }
         }
 
         val isObdConnected = obd.connectionState is ConnectionState.Connected && obd.diagnosticInfo.ecuVerified
