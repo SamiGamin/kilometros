@@ -40,3 +40,15 @@ Ninguno bloquea el uso del Polo Track. Todos son mejoras futuras.
 - Si solo `kDist` está calibrado (turnos válidos sin ciclos cerrados), el badge dice "🟢 calibrado" aunque `kFuel = 1.0` (semilla)
 - Impacto: semántica del badge ambigua en un caso borde
 - Fix sugerido: usar solo `persistedKFuel != 1.0` para el flag, o introducir un `hasPersistedFuelCalibration` separado
+
+## DT-13: `AnalyticsViewModel` conserva nomenclatura y cálculo de cash-flow para `netProfit` y `earningsPerKm`
+- `AnalyticsUiState.netProfit` y `earningsPerKm` calculan ingresos menos gastos registrados (cash-flow), no ganancia operativa real
+- Aunque el copy de `AnalyticsScreen` fue transparentado a "Flujo de Caja Neto" y "Flujo / Km", el estado y ViewModel aún usan nombres de ganancia neta
+- Impacto: discrepancia entre la capa de presentación visual y el modelo de estado; ambigüedad para futuros desarrollos en analítica
+- Fix sugerido: renombrar en `AnalyticsUiState` y `AnalyticsViewModel` a `cashFlow` y `cashFlowPerKm`, o introducir modelos separados cuando se integre OBD
+
+## DT-14: Discrepancia conceptual entre Analytics (flujo de caja por compras) y Home/Transactions (costo operativo OBD)
+- `HomeViewModel` y `TransactionsScreen` calculan ganancia descontando combustible quemado estimado por telemetría OBD (jerarquía §5), mientras `AnalyticsViewModel` solo resta compras de combustible del período
+- En períodos con turnos pero sin tanqueos (`totalExpenses == 0.0 && totalEarnings > 0.0`), el flujo de caja no refleja el costo del combustible consumido
+- Impacto: el usuario visualiza dos métricas con significados económicos diferentes para los mismos turnos según la pantalla consultada
+- Fix sugerido: integrar agregación de combustible quemado por turnos en `AnalyticsViewModel` (DT-11) para permitir alternar entre vista de "Flujo de Caja" y vista de "Ganancia Operativa"
