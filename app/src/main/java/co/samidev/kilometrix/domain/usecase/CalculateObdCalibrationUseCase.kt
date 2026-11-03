@@ -63,6 +63,8 @@ data class ObdCalibrationFactors(
             hasPumpCycleCalibration -> {
                 "🔵 Estimado por ciclo (R_prom)"
             }
+            !hasLiveObdFuel && isFuelCalibrated ->
+                "🔵 OBD calibrado (sin señal actual) · k_fuel=${"%.2f".format(kFuel)}"
             else -> {
                 "⏳ Calibrando 1er ciclo"
             }
