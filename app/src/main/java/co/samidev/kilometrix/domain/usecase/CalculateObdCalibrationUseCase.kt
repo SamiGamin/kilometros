@@ -277,7 +277,7 @@ class CalculateObdCalibrationUseCase @Inject constructor() {
             consecutiveJumpPct = consecutiveJumpPct,
             calibratedFuelCycles = cycleSamples.size,
             incompleteCoverageCycles = incompleteCoverageCycles,
-            cycleSamples = cycleSamples,
+            cycleSamples = cycleSamples.takeLast(MAX_EXPOSED_CYCLES),
             kDist = effectiveKDist,
             isDistCalibrated = isDistCalibrated,
             calibratedDistShifts = validShiftRatios.size,
@@ -317,6 +317,7 @@ class CalculateObdCalibrationUseCase @Inject constructor() {
     }
 
     companion object {
+        const val MAX_EXPOSED_CYCLES = 10
         const val MIN_SHIFT_COVERAGE_PCT = 90.0
         const val MAX_SHIFT_GAP_SEC = 60.0
         const val MIN_CYCLE_DISTANCE_COVERAGE_RATIO = 0.90
