@@ -211,31 +211,32 @@ class CalculateFuelEfficiencyUseCaseTest {
      */
     @Test
     fun `tanque virtual con R_prom 30 kmgal verifica fixture del usuario`() {
-        // Ciclo histórico 1: hito A → hito B (30 km/gal)
-        val hitoA = fuelExpense(
-            odometer = 10000, gallons = 0.0, pricePerGallon = 0.0, isReserve = true
+        // Ciclo homólogo 1 (Reserva → Reserva): 600 km / 20 gal = 30 km/gal
+        val hitoR1 = fuelExpense(
+            odometer = 10000, gallons = 10.0, pricePerGallon = 15000.0, isReserve = true, dateOffset = 1000L
         )
         val tanqueo1 = fuelExpense(
-            odometer = 10200, previousOdometer = 10000, gallons = 10.0, pricePerGallon = 15000.0, isPartial = true
+            odometer = 10200, previousOdometer = 10000, gallons = 10.0, pricePerGallon = 15000.0, isPartial = true, dateOffset = 2000L
         )
-        val hitoB = fuelExpense(
-            odometer = 10600, previousOdometer = 10200, gallons = 10.0, pricePerGallon = 15000.0, isFullTank = true
+        val hitoR2 = fuelExpense(
+            odometer = 10600, previousOdometer = 10200, gallons = 8.0, pricePerGallon = 15000.0, isReserve = true, dateOffset = 3000L
         )
-        // Ciclo histórico 2: hito B → hito C (30 km/gal)
+        // Transición a Tanque Lleno y Ciclo homólogo 2 (Lleno → Lleno): 450 km / 15 gal = 30 km/gal
+        val hitoL1 = fuelExpense(
+            odometer = 10605, previousOdometer = 10600, gallons = 6.0, pricePerGallon = 15000.0, isFullTank = true, dateOffset = 4000L
+        )
         val tanqueo2 = fuelExpense(
-            odometer = 10900, previousOdometer = 10600, gallons = 8.0, pricePerGallon = 15000.0, isPartial = true
+            odometer = 10900, previousOdometer = 10605, gallons = 8.0, pricePerGallon = 15000.0, isPartial = true, dateOffset = 5000L
         )
-        val hitoC = fuelExpense(
-            odometer = 11050, previousOdometer = 10900, gallons = 7.0, pricePerGallon = 15000.0, isReserve = true
+        val hitoL2 = fuelExpense(
+            odometer = 11055, previousOdometer = 10900, gallons = 7.0, pricePerGallon = 15000.0, isFullTank = true, dateOffset = 6000L
         )
-        // Período analizado (turno del usuario): 11 gal, ΔK = 159 km desde hitoC
+        // Período analizado (turno del usuario): 11 gal después del último hito
         val tanqueoActual = fuelExpense(
-            odometer = 11061, previousOdometer = 11050, gallons = 11.0, pricePerGallon = 15529.0, isPartial = true
+            odometer = 11066, previousOdometer = 11055, gallons = 11.0, pricePerGallon = 15529.0, isPartial = true, dateOffset = 7000L
         )
-        // Fin del período (odómetro del cierre del turno — sin nuevo hito, el último registro marca el fin)
-        // El uso del tanque virtual se mide desde hitoC (11050) hasta el último registro
 
-        val expenses = listOf(hitoA, tanqueo1, hitoB, tanqueo2, hitoC, tanqueoActual)
+        val expenses = listOf(hitoR1, tanqueo1, hitoR2, hitoL1, tanqueo2, hitoL2, tanqueoActual)
         val result = useCase(expenses, kmPerShift = 150.0)
 
         // Con 2 ciclos → Fase 3
