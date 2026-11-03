@@ -80,8 +80,6 @@ class RecalculateFuelChainUseCase @Inject constructor() {
                     normalized.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
                 itemA.details.isReserve && itemB.details.isReserve ->
                     normalized.subList(idxA, idxB).sumOf { it.gallons }
-                itemA.details.isReserve && itemA.gallons == 0.0 ->
-                    normalized.subList(idxA + 1, idxB + 1).sumOf { it.gallons }
                 else -> 0.0
             }
 
