@@ -6,14 +6,24 @@ Kilometrix es una aplicación para Android diseñada para ayudar a los conductor
 
 *   **Gestión de Vehículos**: Permite registrar y administrar múltiples vehículos (carros, motos, vans).
 *   **Registro de Gastos**: Seguimiento detallado de gastos como combustible, mantenimiento, peajes, seguros y parqueaderos.
+*   **Telemetría OBD-II BLE en Vivo y Calibración Continua**:
+    *   Conexión con adaptadores OBD-II BLE (ELM327 / V03H4) durante el turno.
+    *   Cálculo físico de combustible por Speed-Density con régimen urbano (ralentí con factor VE=0.68 y corte DFCO a 0 L/h en desaceleración).
+    *   Calibración estadística continua con EWMA ponderado por kilómetros para `k_fuel` con bandas de confianza y detección de inestabilidad.
+    *   Calibración de distancia `k_dist` con mediana robusta por turno.
+    *   Regla de cobertura estricta (≥90%, max gap 60 s, conexión al inicio y cierre).
 *   **Modelo Multifase de Eficiencia de Combustible**:
     Un algoritmo inteligente para calcular el rendimiento real y proyectar la autonomía del vehículo mediante un "Tanque Virtual".
     *   **Fase 1 (Flujo de Caja)**: Registra el dinero gastado y los galones comprados antes de tener suficientes datos para calibrar.
-    *   **Fase 2 (Calibración)**: Utiliza hitos de tanqueo (Reserva o Tanque Lleno) para establecer ciclos precisos y calcular el promedio de kilómetros por galón (R_prom) ponderado.
-    *   **Fase 3 (Tanque Virtual)**: Proyecta los galones restantes en el tanque basándose en el consumo calibrado y la distancia recorrida desde el último tanqueo. Calcula la autonomía restante en kilómetros y en turnos de trabajo.
+    *   **Fase 2 (Calibración Homóloga)**: Ciclos exclusivos (Lleno-a-Lleno y Reserva-a-Reserva) para calcular el rendimiento real ($R_{prom}$) ponderado.
+    *   **Fase 3 (Tanque Virtual)**: Proyecta el nivel del tanque y la autonomía restante en kilómetros y turnos de trabajo.
+*   **Análisis y Observabilidad Honesta**:
+    *   Distinción clara entre **Flujo de Caja Neto** (ingresos − compras de combustible − gastos registrados) y **Ganancia Operativa Real** basada en telemetría OBD.
+    *   Nueva sección de **Observabilidad OBD** con 4 tarjetas de control: Consumo real vs. semilla nominal, Calidad de la medición (turnos válidos y cobertura), Estado de calibración (`k_fuel` y banda de confianza) y Reconciliación física (litros comprados vs. quemados).
 *   **Soporte Multimedida**: Permite registrar ingresos en galones, litros, kilovatios (kWh) o metros cúbicos (GNV), realizando las conversiones internamente.
 *   **Pico y Placa Inteligente**: (Dependiendo de la ciudad) Evalúa en tiempo real si el vehículo tiene restricción de circulación según su placa, la hora del dispositivo y reglas específicas de exención (ej. vehículos eléctricos).
 *   **Sincronización en la Nube**: Utiliza Firebase (Auth, Firestore) para guardar de forma segura los datos del usuario en la nube y soportar uso offline con datos locales de respaldo.
+*   **CI/CD Automatizado**: Integración con GitHub Actions para compilación, firma y generación automática de APKs en GitHub Releases al actualizar la versión.
 
 ## Arquitectura
 
