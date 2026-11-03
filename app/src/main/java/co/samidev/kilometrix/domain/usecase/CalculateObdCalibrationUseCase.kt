@@ -55,7 +55,7 @@ data class ObdCalibrationFactors(
                 "🟢 OBD calibrado ($band)$iatSuffix"
             }
             hasLiveObdFuel && isFuelCalibrated && !isFuelStable -> {
-                "🟡 Medición OBD inestable (±${"%.1f".format(confidenceBandPct)}%)$iatSuffix"
+                "🟠 Calibración inestable (±${"%.1f".format(confidenceBandPct)}%)$iatSuffix"
             }
             hasLiveObdFuel && !isFuelCalibrated -> {
                 "🟡 OBD en vivo (semilla VE=0,85)$iatSuffix"
