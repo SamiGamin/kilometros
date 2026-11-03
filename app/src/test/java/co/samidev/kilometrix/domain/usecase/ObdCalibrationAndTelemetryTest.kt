@@ -98,7 +98,15 @@ class ObdCalibrationAndTelemetryTest {
         assertEquals(2, result.calibratedFuelCycles)
         assertFalse("Dos ciclos con salto >10% deben marcar isFuelStable = false", result.isFuelStable)
         assertTrue(result.obdFuelFactorStdev > 0.0)
-        assertTrue(result.formatFuelSourceBadge(hasLiveObdFuel = true, hasPumpCycleCalibration = true).contains("inestable"))
+        assertTrue(result.formatFuelSourceBadge(hasLiveObdFuel = true, hasPumpCycleCalibration = true).startsWith("🟠"))
+        assertTrue(
+            "prioridad 2 (semilla) debe usar 🟡, no 🟠",
+            CalculateObdCalibrationUseCase().let { uc ->
+                uc(emptyList(), emptyList()).formatFuelSourceBadge(
+                    hasLiveObdFuel = true, hasPumpCycleCalibration = false
+                ).startsWith("🟡")
+            }
+        )
     }
 
     // ── PUNTO 2: Regla de Cobertura explícita excluye turnos con gap > 60s o cobertura < 90% ──
