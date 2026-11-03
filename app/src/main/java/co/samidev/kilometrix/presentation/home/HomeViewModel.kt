@@ -89,7 +89,8 @@ data class HomeUiState(
     val obdAlertMessage: String? = null,
     val obdCalibrationFactors: ObdCalibrationFactors = ObdCalibrationFactors(),
     val fuelSourceLabel: String = "⏳ Calibrando 1er ciclo",
-    val suggestedFinalOdometer: Int = 0
+    val suggestedFinalOdometer: Int = 0,
+    val lastRefuelPricePerLiterCop: Double = 0.0
 )
 
 private data class HomeCoreData(
@@ -352,7 +353,8 @@ class HomeViewModel @Inject constructor(
             obdAlertMessage = alertMsg,
             obdCalibrationFactors = obdCalibration,
             fuelSourceLabel = fuelSourceLabel,
-            suggestedFinalOdometer = suggestedFinalOd
+            suggestedFinalOdometer = suggestedFinalOd,
+            lastRefuelPricePerLiterCop = lastRefuelPricePerLiter
         )
     }.stateIn(
         scope = viewModelScope,
@@ -413,12 +415,8 @@ class HomeViewModel @Inject constructor(
         obdRepository.disconnect()
     }
 
-    private fun resolvePricePerLiterCop(): Double {
-        val summary = uiState.value.fuelEfficiencySummary
-        return if (summary != null && summary.totalLiters > 0.0) {
-            summary.totalSpentCash / summary.totalLiters
-        } else 0.0
-    }
+    private fun resolvePricePerLiterCop(): Double =
+        uiState.value.lastRefuelPricePerLiterCop
 
     // ── Funciones de interacción del turno ────────────────────────────────────
 
