@@ -71,6 +71,78 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Algoritmo de cálculo de Pascua (Meeus/Jones/Butcher)
+function getEasterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addDays(date, days) {
+  const result = new Date(date.getTime());
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+// Ley Emiliani (Ley 51 de 1983): si no es lunes, traslada al lunes siguiente
+function moveToNextMonday(date) {
+  const day = date.getUTCDay();
+  if (day === 1) return date;
+  const daysToAdd = day === 0 ? 1 : 8 - day;
+  return addDays(date, daysToAdd);
+}
+
+function formatDate(date) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// 18 festivos oficiales de Colombia por año
+function getColombianHolidays(year) {
+  const easter = getEasterSunday(year);
+  const holidays = [
+    // Fijos inmutables (6)
+    new Date(Date.UTC(year, 0, 1)),   // Año Nuevo
+    new Date(Date.UTC(year, 4, 1)),   // Día del Trabajo
+    new Date(Date.UTC(year, 6, 20)),  // Independencia de Colombia
+    new Date(Date.UTC(year, 7, 7)),   // Batalla de Boyacá
+    new Date(Date.UTC(year, 11, 8)),  // Inmaculada Concepción
+    new Date(Date.UTC(year, 11, 25)), // Navidad
+
+    // Sujetos a Ley Emiliani (7)
+    moveToNextMonday(new Date(Date.UTC(year, 0, 6))),   // Reyes Magos
+    moveToNextMonday(new Date(Date.UTC(year, 2, 19))),  // San José
+    moveToNextMonday(new Date(Date.UTC(year, 5, 29))),  // San Pedro y San Pablo
+    moveToNextMonday(new Date(Date.UTC(year, 7, 15))),  // Asunción de la Virgen
+    moveToNextMonday(new Date(Date.UTC(year, 9, 12))),  // Día de la Raza
+    moveToNextMonday(new Date(Date.UTC(year, 10, 1))),  // Todos los Santos
+    moveToNextMonday(new Date(Date.UTC(year, 10, 11))), // Independencia de Cartagena
+
+    // Relativos a Pascua (5)
+    addDays(easter, -3), // Jueves Santo
+    addDays(easter, -2), // Viernes Santo
+    moveToNextMonday(addDays(easter, 40)), // Ascensión del Señor
+    moveToNextMonday(addDays(easter, 60)), // Corpus Christi
+    moveToNextMonday(addDays(easter, 68))  // Sagrado Corazón de Jesús
+  ];
+
+  return holidays.map(formatDate).sort();
+}
+
 // Scrapear una ciudad colombiana desde su página principal
 async function scrapeCityData(city) {
   try {
@@ -199,25 +271,8 @@ async function run() {
     schema_version: "1.0",
     last_updated: new Date().toISOString(),
     holidays: [
-      "2026-01-01", // Año Nuevo
-      "2026-01-12", // Reyes Magos
-      "2026-03-23", // San José
-      "2026-04-02", // Jueves Santo
-      "2026-04-03", // Viernes Santo
-      "2026-05-01", // Día del Trabajo
-      "2026-05-18", // Ascensión
-      "2026-06-08", // Corpus Christi
-      "2026-06-15", // Sagrado Corazón
-      "2026-06-29", // San Pedro y San Pablo
-      "2026-07-13", // Festivo Especial (Nuevo festivo del 13 de Julio)
-      "2026-07-20", // Independencia
-      "2026-08-07", // Batalla de Boyacá
-      "2026-08-17", // Asunción
-      "2026-10-12", // Día de la Raza
-      "2026-11-02", // Todos los Santos
-      "2026-11-16", // Independencia de Cartagena
-      "2026-12-08", // Inmaculada Concepción
-      "2026-12-25"  // Navidad
+      ...getColombianHolidays(new Date().getFullYear()),
+      ...getColombianHolidays(new Date().getFullYear() + 1)
     ],
     cities: []
   };
@@ -252,6 +307,17 @@ async function run() {
       }
       await sleep(250); // Delay prudente de 250ms para evitar rate limits
     }
+
+    // Deduplicar restricciones por tipo de vehículo y horario (B1)
+    dataFinal.cities.forEach(city => {
+      const seen = new Set();
+      city.restrictions = city.restrictions.filter(r => {
+        const key = `${r.vehicle_type}|${r.schedule}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    });
 
     // Guardar estructura completa en Firestore
     await guardarEnFirestore(dataFinal);
