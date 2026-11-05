@@ -214,6 +214,8 @@ fun HomeScreen(
             elapsedMs = uiState.shiftElapsedMs,
             totalEarnings = uiState.shiftTotalEarnings,
             suggestedFinalOdometer = uiState.suggestedFinalOdometer,
+            suggestedFinalOdometerPrecise = uiState.suggestedFinalOdometerPrecise,
+            obdEstimatedDistanceKm = uiState.obdEstimatedDistanceKm,
             onDismiss = { showEndShiftDialog = false },
             onConfirm = { finalOd ->
                 viewModel.endShift(finalOd)

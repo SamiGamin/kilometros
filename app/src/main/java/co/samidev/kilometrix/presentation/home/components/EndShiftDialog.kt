@@ -1,5 +1,6 @@
 package co.samidev.kilometrix.presentation.home.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,11 +22,15 @@ fun EndShiftDialog(
     elapsedMs: Long,
     totalEarnings: Double,
     suggestedFinalOdometer: Int = 0,
+    suggestedFinalOdometerPrecise: Double = 0.0,
+    obdEstimatedDistanceKm: Double = 0.0,
     onDismiss: () -> Unit,
     onConfirm: (finalOdometer: Int) -> Unit
 ) {
     val initOd = shift?.initialOdometer ?: 0
-    val initialText = if (suggestedFinalOdometer > initOd) suggestedFinalOdometer.toString() else ""
+    val initialText = if (suggestedFinalOdometer > initOd + 1) {
+        suggestedFinalOdometer.toString()
+    } else ""
     var finalOdText by remember(suggestedFinalOdometer, initOd) { mutableStateOf(initialText) }
     val finalOd = finalOdText.toIntOrNull() ?: 0
     val diffKm = finalOd - initOd
@@ -54,6 +59,25 @@ fun EndShiftDialog(
                 style = MaterialTheme.typography.bodyMedium
             )
 
+            val isShortTrip = obdEstimatedDistanceKm > 0.0 && obdEstimatedDistanceKm < 1.0
+            if (isShortTrip) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = SecondaryContainer.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, Secondary.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("🛣️ Recorrido muy corto", fontWeight = FontWeight.Bold, color = Secondary)
+                        Text(
+                            "Solo ${String.format("%.2f", obdEstimatedDistanceKm)} km. " +
+                            "¿Continuar conduciendo o finalizar?",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = finalOdText,
                 onValueChange = { if (it.all { c -> c.isDigit() }) finalOdText = it },
@@ -62,12 +86,31 @@ fun EndShiftDialog(
                 visualTransformation = ThousandSeparatorVisualTransformation(),
                 isError = finalOdText.isNotBlank() && !isOdValid,
                 supportingText = {
-                    if (finalOdText.isNotBlank() && finalOd < initOd) {
-                        Text("Debe ser mayor o igual al inicial (${homeCurrencyFmt.format(initOd)} km)", color = MaterialTheme.colorScheme.error)
-                    } else if (finalOdText.isNotBlank() && isExaggerated) {
-                        Text("⚠️ Son +${homeCurrencyFmt.format(diffKm)} km recorridos. Por favor verifica si escribiste un número de más.", color = MaterialTheme.colorScheme.error)
-                    } else {
-                        Text("Odómetro inicial: ${homeCurrencyFmt.format(initOd)} km")
+                    when {
+                        finalOdText.isNotBlank() && finalOd < initOd -> {
+                            Text(
+                                "Debe ser mayor o igual al inicial (${homeCurrencyFmt.format(initOd)} km)",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        finalOdText.isNotBlank() && isExaggerated -> {
+                            Text(
+                                "⚠️ Son +${homeCurrencyFmt.format(diffKm)} km. Verifica si escribiste un número de más.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        obdEstimatedDistanceKm > 0.01 -> {
+                            // Mostrar distancia OBD precisa cuando está disponible
+                            val preciseOdometer = suggestedFinalOdometerPrecise
+                            Text(
+                                "📡 OBD midió ${String.format("%.2f", obdEstimatedDistanceKm)} km " +
+                                "(odómetro ~${String.format("%.1f", preciseOdometer)} km)",
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        else -> {
+                            Text("Odómetro inicial: ${homeCurrencyFmt.format(initOd)} km")
+                        }
                     }
                 },
                 shape = RoundedCornerShape(12.dp),
@@ -77,6 +120,11 @@ fun EndShiftDialog(
 
             if (isOdValid && finalOd > 0) {
                 val realKm = finalOd - initOd
+                val displayKm = if (obdEstimatedDistanceKm > 0.01) {
+                    String.format("%.2f km", obdEstimatedDistanceKm)
+                } else {
+                    "$realKm km"
+                }
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = SecondaryContainer.copy(alpha = 0.3f),
@@ -90,7 +138,7 @@ fun EndShiftDialog(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "· Distancia real: $realKm km",
+                            text = "· Distancia real: $displayKm",
                             style = MaterialTheme.typography.bodySmall
                         )
                         Text(
@@ -115,24 +163,17 @@ fun EndShiftDialog(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onDismiss) {
-                    Text("Cancelar")
+                    Text(if (isShortTrip) "Continuar conduciendo" else "Cancelar")
                 }
                 Spacer(Modifier.width(8.dp))
                 Button(
-                    onClick = {
-                        if (isOdValid && finalOd > 0) {
-                            onConfirm(finalOd)
-                        }
-                    },
+                    onClick = { if (isOdValid && finalOd > 0) onConfirm(finalOd) },
                     enabled = isOdValid && finalOd > 0,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Finalizar Recorrido")
+                    Text(if (isShortTrip) "Finalizar de todas formas" else "Finalizar Recorrido")
                 }
             }
         }

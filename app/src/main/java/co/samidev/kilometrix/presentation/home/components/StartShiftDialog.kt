@@ -1,5 +1,9 @@
 package co.samidev.kilometrix.presentation.home.components
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,10 +14,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import co.samidev.kilometrix.domain.model.ShiftType
 import co.samidev.kilometrix.presentation.util.ThousandSeparatorVisualTransformation
 import co.samidev.kilometrix.ui.theme.*
@@ -28,6 +34,26 @@ fun StartShiftDialog(
     onDismiss: () -> Unit,
     onConfirm: (odometer: Int, type: ShiftType) -> Unit
 ) {
+    val context = LocalContext.current
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasLocationPermission = granted
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasLocationPermission) {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     var odText by remember { mutableStateOf(if (defaultOdometer > 0) defaultOdometer.toString() else "") }
     var selectedType by remember { mutableStateOf(ShiftType.WORK) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

@@ -90,6 +90,8 @@ data class HomeUiState(
     val obdCalibrationFactors: ObdCalibrationFactors = ObdCalibrationFactors(),
     val fuelSourceLabel: String = "⏳ Calibrando 1er ciclo",
     val suggestedFinalOdometer: Int = 0,
+    val suggestedFinalOdometerPrecise: Double = 0.0,
+    val obdEstimatedDistanceKm: Double = 0.0,
     val lastRefuelPricePerLiterCop: Double = 0.0
 )
 
@@ -323,11 +325,7 @@ class HomeViewModel @Inject constructor(
             else -> null
         }
 
-        val suggestedFinalOd = if (shift != null && estKm > 0.0) {
-            shift.initialOdometer + estKm.roundToInt()
-        } else {
-            shift?.initialOdometer ?: 0
-        }
+        val suggestedFinalOd = shift?.initialOdometer ?: 0
 
         HomeUiState(
             userName = userName,
@@ -363,6 +361,10 @@ class HomeViewModel @Inject constructor(
             obdCalibrationFactors = obdCalibration,
             fuelSourceLabel = fuelSourceLabel,
             suggestedFinalOdometer = suggestedFinalOd,
+            suggestedFinalOdometerPrecise = if (shift != null) {
+                shift.initialOdometer + estKm
+            } else 0.0,
+            obdEstimatedDistanceKm = estKm,
             lastRefuelPricePerLiterCop = lastRefuelPricePerLiter
         )
     }.stateIn(
@@ -433,23 +435,24 @@ class HomeViewModel @Inject constructor(
         initialOdometer: Int,
         type: co.samidev.kilometrix.domain.model.ShiftType = co.samidev.kilometrix.domain.model.ShiftType.WORK
     ) {
-        val vehicle = uiState.value.activeVehicle ?: return
-        if (!uiState.value.isObdConnected) {
-            errorMessage.value = "Debes conectar el adaptador OBD-II a la ECU antes de iniciar el recorrido."
+        val vehicle = uiState.value.activeVehicle ?: run {
+            errorMessage.value = "No hay vehículo activo."
             return
         }
-        val startAltitudeMeters = altitudeProvider.readAltitudeMeters()
+        if (!uiState.value.isObdConnected) {
+            errorMessage.value = "Debes conectar el adaptador OBD-II antes de iniciar."
+            return
+        }
         viewModelScope.launch {
             actionLoading.value = true
             errorMessage.value = null
+            val startAltitudeMeters = altitudeProvider.readAltitudeMeters()
             val result = workShiftRepository.startShift(vehicle.id, initialOdometer, type)
             actionLoading.value = false
             result.onSuccess { shiftId ->
                 if (startAltitudeMeters != null) {
-                    viewModelScope.launch {
-                        runCatching {
-                            workShiftRepository.updateShiftStartAltitude(shiftId, startAltitudeMeters)
-                        }
+                    launch {
+                        runCatching { workShiftRepository.updateShiftStartAltitude(shiftId, startAltitudeMeters) }
                     }
                 }
                 obdServiceController.startShiftTelemetry(
@@ -457,9 +460,7 @@ class HomeViewModel @Inject constructor(
                     initialOdometerKm = initialOdometer,
                     pricePerLiterCop = resolvePricePerLiterCop()
                 )
-            }.onFailure { err ->
-                errorMessage.value = err.message ?: "Error al iniciar recorrido"
-            }
+            }.onFailure { err -> errorMessage.value = err.message }
         }
     }
 
@@ -507,12 +508,12 @@ class HomeViewModel @Inject constructor(
         val finalMetricsForEval = obdMetrics.copy(connectedAtEnd = isConnectedAtEnd)
         val calFactors = uiState.value.obdCalibrationFactors
         val startAlt = uiState.value.activeShift?.startAltitudeMeters
-        val endAlt = altitudeProvider.readAltitudeMeters()
-        val netDelta = if (startAlt != null && endAlt != null) (endAlt - startAlt).toInt() else null
 
         viewModelScope.launch {
             actionLoading.value = true
             errorMessage.value = null
+            val endAlt = altitudeProvider.readAltitudeMeters()
+            val netDelta = if (startAlt != null && endAlt != null) (endAlt - startAlt).toInt() else null
             val result = workShiftRepository.endShift(
                 shiftId = shift.id,
                 finalOdometer = finalOdometer,
