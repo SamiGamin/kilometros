@@ -24,6 +24,20 @@ fun VehicleScreen() {
     val picoPlacaState by viewModel.picoPlacaState.collectAsState()
     val hasActiveShift by viewModel.hasActiveShift.collectAsState()
     val context = LocalContext.current
+    val vehicleUiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(vehicleUiState) {
+        when (val state = vehicleUiState) {
+            is VehicleUiState.Error -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+                viewModel.resetUiState()
+            }
+            is VehicleUiState.Success -> {
+                viewModel.resetUiState()
+            }
+            else -> Unit
+        }
+    }
 
     var selectedVehicle by remember { mutableStateOf<Vehicle?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -104,8 +118,6 @@ fun VehicleScreen() {
                 )
             }
         }
-
-        Spacer(Modifier.height(80.dp))
     }
 
     if (showAddDialog) {
