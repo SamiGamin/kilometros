@@ -26,7 +26,7 @@ private data class ProfileInternalState(
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    userRepository: UserRepository,
+    private val userRepository: UserRepository,
     getDriverStatsUseCase: GetDriverStatsUseCase,
     private val updateUserProfileUseCase: UpdateUserProfileUseCase,
     private val auth: FirebaseAuth,
@@ -185,13 +185,18 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun updateMaintenanceReserve(percent: Int) {
-        val currentProfile = uiState.value.profile ?: return
-        updateProfile(
-            name = currentProfile.name,
-            city = currentProfile.city,
-            platforms = currentProfile.platforms,
-            maintenanceReservePercent = percent
-        )
+        viewModelScope.launch {
+            _internalState.update { it.copy(isSaving = true) }
+            val result = userRepository.updateMaintenanceReservePercent(percent)
+            _internalState.update { it.copy(isSaving = false) }
+            if (result.isSuccess) {
+                _eventChannel.send(ProfileUiEvent.ShowSnackbar("Reserva actualizada a $percent%"))
+            } else {
+                _eventChannel.send(ProfileUiEvent.ShowSnackbar(
+                    result.exceptionOrNull()?.message ?: "Error al actualizar reserva"
+                ))
+            }
+        }
     }
 
     fun signOut() {

@@ -57,6 +57,16 @@ class UserRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun updateMaintenanceReservePercent(percent: Int): Result<Unit> {
+        val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
+        return try {
+            db.collection("users").document(userId).update(
+                "maintenanceReservePercent", percent.coerceIn(5, 25)
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     override fun getUserProfile(): Flow<UserProfile?> = callbackFlow {
         val userId = auth.currentUser?.uid
         if (userId == null) {
