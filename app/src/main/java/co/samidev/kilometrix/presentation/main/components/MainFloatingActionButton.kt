@@ -32,7 +32,7 @@ fun MainFloatingActionButton(
         enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
         exit = scaleOut(tween(150)) + fadeOut(tween(100)),
         modifier = modifier
-            .padding(end = 20.dp, bottom = 88.dp)
+            
     ) {
         FloatingActionButton(
             onClick = onClick,
