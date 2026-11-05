@@ -209,8 +209,8 @@ internal fun AddExpenseSheetContent(
     var pricePerUnitText by remember { mutableStateOf("") }
     var odometerText by remember { mutableStateOf("") }
 
-    // 🆕 Tipo de ciclo del tanqueo
-    var refuelCycleType by remember { mutableStateOf(RefuelCycleType.PARTIAL) }
+    // 🆕 Tipo de ciclo del tanqueo (requiere selección explícita por el usuario)
+    var refuelCycleType by remember { mutableStateOf<RefuelCycleType?>(null) }
 
     // Otros gastos
     var amountText by remember { mutableStateOf("") }
@@ -251,9 +251,11 @@ internal fun AddExpenseSheetContent(
     val odometerWarning: String? = null
 
     val odometerIsValid = if (isFuel) (odometerEntered && odometerError == null) else (!odometerEntered || odometerError == null)
+    val showCycleSelector = isFuel && (!fuelConfig.isElectricOrGnv || fuelConfig.typeName == "GNV")
+    val cycleTypeIsValid = !showCycleSelector || refuelCycleType != null
 
     val canSave = if (isFuel) {
-        quantity > 0.0 && pricePerUnit > 0.0 && vehicle != null && odometerIsValid
+        quantity > 0.0 && pricePerUnit > 0.0 && vehicle != null && odometerIsValid && cycleTypeIsValid
     } else {
         (amountText.toDoubleOrNull() ?: 0.0) > 0.0 && vehicle != null
     }
@@ -549,6 +551,7 @@ internal fun AddExpenseSheetContent(
         Button(
             onClick = {
                 if (!canSave || vehicle == null) return@Button
+                val cycleType = refuelCycleType ?: RefuelCycleType.PARTIAL
                 val finalAmount = if (isFuel) totalFuel else (amountText.toDoubleOrNull() ?: 0.0)
                 val expense = VehicleExpense(
                     vehicleId = vehicle.id,
@@ -563,7 +566,7 @@ internal fun AddExpenseSheetContent(
                     quantity,
                     pricePerUnit,
                     odometerNow,
-                    refuelCycleType,
+                    cycleType,
                     selectedDateMs
                 )
             },
@@ -574,8 +577,13 @@ internal fun AddExpenseSheetContent(
             colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
             shape = RoundedCornerShape(14.dp)
         ) {
+            val buttonText = when {
+                isFuel && showCycleSelector && refuelCycleType == null && quantity > 0.0 && pricePerUnit > 0.0 && odometerIsValid ->
+                    "Elige Tipo de Tanqueo"
+                else -> "Guardar Gasto"
+            }
             Text(
-                text = "Guardar Gasto",
+                text = buttonText,
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White
             )
@@ -589,9 +597,11 @@ internal fun AddExpenseSheetContent(
 
 @Composable
 private fun RefuelCycleSelector(
-    selected: RefuelCycleType,
+    selected: RefuelCycleType?,
     onSelect: (RefuelCycleType) -> Unit
 ) {
+    val isMissingSelection = selected == null
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // Header con info del tanque virtual
         Row(
@@ -601,18 +611,19 @@ private fun RefuelCycleSelector(
             Text(
                 text = "TIPO DE TANQUEO",
                 style = MaterialTheme.typography.labelSmall,
-                color = OnSurfaceVariant,
+                color = if (isMissingSelection) MaterialTheme.colorScheme.error else OnSurfaceVariant,
                 fontWeight = FontWeight.SemiBold
             )
             // Badge informativo
             Surface(
                 shape = RoundedCornerShape(4.dp),
-                color = Secondary.copy(alpha = 0.15f)
+                color = if (isMissingSelection) MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                       else Secondary.copy(alpha = 0.15f)
             ) {
                 Text(
-                    text = "Tanque Virtual",
+                    text = if (isMissingSelection) "Obligatorio *" else "Tanque Virtual",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Secondary,
+                    color = if (isMissingSelection) MaterialTheme.colorScheme.error else Secondary,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                 )
@@ -641,8 +652,10 @@ private fun RefuelCycleSelector(
                             else SurfaceContainerHigh
                         )
                         .border(
-                            width = if (isSelected) 1.5.dp else 0.dp,
-                            color = if (isSelected) chipColor else Color.Transparent,
+                            width = if (isSelected) 1.5.dp else if (isMissingSelection) 1.dp else 0.dp,
+                            color = if (isSelected) chipColor
+                                    else if (isMissingSelection) MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
+                                    else Color.Transparent,
                             shape = RoundedCornerShape(12.dp)
                         )
                         .clickable { onSelect(cycleType) }
@@ -681,29 +694,48 @@ private fun RefuelCycleSelector(
             transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
             label = "cycle_info"
         ) { cycleSelected ->
-            val (color, text) = when (cycleSelected) {
-                RefuelCycleType.RESERVE ->
-                    Color(0xFFFF6B35) to "🪫 El testigo de reserva como hito A activa la calibración del Tanque Virtual"
-                RefuelCycleType.FULL_TANK ->
-                    Color(0xFF4CAF50) to "✅ Llenado completo: cierra el ciclo y calcula el rendimiento real km/gal"
-                RefuelCycleType.PARTIAL ->
-                    Secondary to "⛽ Tanqueo normal: se acumula en el flujo de caja sin calibrar el rendimiento"
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(color.copy(alpha = 0.08f))
-                    .border(0.5.dp, color.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = color.copy(alpha = 0.9f)
-                )
+            if (cycleSelected == null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.error.copy(alpha = 0.08f))
+                        .border(0.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⚠️ Obligatorio: indica si tenías testigo de reserva, llenaste completo o fue parcial.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            } else {
+                val (color, text) = when (cycleSelected) {
+                    RefuelCycleType.RESERVE ->
+                        Color(0xFFFF6B35) to "🪫 El testigo de reserva como hito A activa la calibración del Tanque Virtual"
+                    RefuelCycleType.FULL_TANK ->
+                        Color(0xFF4CAF50) to "✅ Llenado completo: cierra el ciclo y calcula el rendimiento real km/gal"
+                    RefuelCycleType.PARTIAL ->
+                        Secondary to "⛽ Tanqueo normal: se acumula en el flujo de caja sin calibrar el rendimiento"
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(color.copy(alpha = 0.08f))
+                        .border(0.5.dp, color.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = color.copy(alpha = 0.9f)
+                    )
+                }
             }
         }
     }
