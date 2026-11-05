@@ -14,6 +14,8 @@ data class WorkShift(
     val endTime: Long? = null,
     val initialOdometer: Int = 0,
     val finalOdometer: Int? = null,
+    val initialOdometerPrecise: Double? = null,
+    val finalOdometerPrecise: Double? = null,
     val pausedDurationMs: Long = 0L,        // Tiempo total acumulado en pausa (ms)
     val status: ShiftStatus = ShiftStatus.ACTIVE,
     val pauseStartTime: Long? = null,       // Tiempo en que se pausó la última vez
