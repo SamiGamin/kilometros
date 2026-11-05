@@ -125,7 +125,8 @@ class HomeViewModel @Inject constructor(
     private val recalculateFuelChainUseCase: RecalculateFuelChainUseCase,
     private val obdRepository: ObdRepository,
     private val obdSessionState: ObdSessionState,
-    private val obdServiceController: ObdServiceController
+    private val obdServiceController: ObdServiceController,
+    private val altitudeProvider: co.samidev.kilometrix.util.AltitudeProvider
 ) : ViewModel() {
 
     private val actionLoading = MutableStateFlow(false)
@@ -437,12 +438,20 @@ class HomeViewModel @Inject constructor(
             errorMessage.value = "Debes conectar el adaptador OBD-II a la ECU antes de iniciar el recorrido."
             return
         }
+        val startAltitudeMeters = altitudeProvider.readAltitudeMeters()
         viewModelScope.launch {
             actionLoading.value = true
             errorMessage.value = null
             val result = workShiftRepository.startShift(vehicle.id, initialOdometer, type)
             actionLoading.value = false
             result.onSuccess { shiftId ->
+                if (startAltitudeMeters != null) {
+                    viewModelScope.launch {
+                        runCatching {
+                            workShiftRepository.updateShiftStartAltitude(shiftId, startAltitudeMeters)
+                        }
+                    }
+                }
                 obdServiceController.startShiftTelemetry(
                     shiftId = shiftId,
                     initialOdometerKm = initialOdometer,
@@ -497,6 +506,9 @@ class HomeViewModel @Inject constructor(
         val isConnectedAtEnd = uiState.value.isObdConnected
         val finalMetricsForEval = obdMetrics.copy(connectedAtEnd = isConnectedAtEnd)
         val calFactors = uiState.value.obdCalibrationFactors
+        val startAlt = uiState.value.activeShift?.startAltitudeMeters
+        val endAlt = altitudeProvider.readAltitudeMeters()
+        val netDelta = if (startAlt != null && endAlt != null) (endAlt - startAlt).toInt() else null
 
         viewModelScope.launch {
             actionLoading.value = true
@@ -518,7 +530,8 @@ class HomeViewModel @Inject constructor(
                 obdCutoffSec = obdMetrics.cutoffSec,
                 obdFuelFactorEwma = calFactors.kFuel,
                 obdFuelFactorStdev = calFactors.obdFuelFactorStdev,
-                obdDistFactorMedian = calFactors.kDist
+                obdDistFactorMedian = calFactors.kDist,
+                netElevationChangeMeters = netDelta
             )
             actionLoading.value = false
             if (result.isSuccess) {
