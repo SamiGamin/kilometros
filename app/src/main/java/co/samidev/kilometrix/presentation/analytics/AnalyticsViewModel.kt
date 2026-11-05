@@ -7,6 +7,8 @@ import co.samidev.kilometrix.domain.model.Vehicle
 import co.samidev.kilometrix.domain.model.VehicleExpense
 import co.samidev.kilometrix.domain.model.WorkShift
 import co.samidev.kilometrix.domain.repository.ActiveVehicleRepository
+import co.samidev.kilometrix.domain.repository.UserRepository
+import co.samidev.kilometrix.domain.usecase.CalculateMaintenanceReserveUseCase
 import co.samidev.kilometrix.domain.usecase.CalculateObdCalibrationUseCase
 import co.samidev.kilometrix.domain.usecase.GetExpensesUseCase
 import co.samidev.kilometrix.domain.usecase.GetVehiclesUseCase
@@ -57,7 +59,13 @@ data class AnalyticsUiState(
     val obdKFuelBandPct: Double = 0.0,
     val obdKFuelStable: Boolean = true,
     val obdCalibratedCycles: Int = 0,
-    val obdLitersComprados: Double = 0.0
+    val obdLitersComprados: Double = 0.0,
+    // ── Fondo de Mantenimiento (Opción 4, on-the-fly) ──
+    val maintenanceReservePercent: Int = 10,
+    val maintenanceReserveProvisionedCop: Double = 0.0,
+    val maintenanceReserveUsedCop: Double = 0.0,
+    val maintenanceReserveBalanceCop: Double = 0.0,
+    val maintenanceReserveHasData: Boolean = false
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -67,7 +75,9 @@ class AnalyticsViewModel @Inject constructor(
     private val activeVehicleRepository: ActiveVehicleRepository,
     private val getWorkShiftsUseCase: GetWorkShiftsUseCase,
     private val getExpensesUseCase: GetExpensesUseCase,
-    private val calculateObdCalibrationUseCase: CalculateObdCalibrationUseCase
+    private val calculateObdCalibrationUseCase: CalculateObdCalibrationUseCase,
+    private val calculateMaintenanceReserveUseCase: CalculateMaintenanceReserveUseCase,
+    private val userRepository: UserRepository
 ) : ViewModel() {
 
     private val _period = MutableStateFlow(AnalyticsPeriod.MONTH)
@@ -84,6 +94,10 @@ class AnalyticsViewModel @Inject constructor(
         if (vehicle == null) flowOf(emptyList()) else getWorkShiftsUseCase(vehicle.id)
     }
 
+    private val userProfileFlow = userRepository.getUserProfile()
+        .map { it?.maintenanceReservePercent ?: 10 }
+        .distinctUntilChanged()
+
     private val rawExpenses = selectedVehicle.flatMapLatest { vehicle ->
         if (vehicle == null) flowOf(emptyList()) else getExpensesUseCase(vehicle.id)
     }
@@ -91,8 +105,9 @@ class AnalyticsViewModel @Inject constructor(
     val uiState: StateFlow<AnalyticsUiState> = combine(
         combine(vehicles, selectedVehicle, ::Pair),
         combine(_period, _dateOffset, ::Pair),
-        combine(rawShifts, rawExpenses, ::Pair)
-    ) { (vehiclesList, vehicle), (period, offset), (shifts, expenses) ->
+        combine(rawShifts, rawExpenses, ::Pair),
+        userProfileFlow
+    ) { (vehiclesList, vehicle), (period, offset), (shifts, expenses), reservePercent ->
         val (startTimeMs, endTimeMs, label) = getPeriodRange(period, offset)
         
         val filteredShifts = shifts.filter { it.startTime in startTimeMs..endTimeMs }
@@ -119,6 +134,12 @@ class AnalyticsViewModel @Inject constructor(
         val netProfit = totalEarnings - totalExpensesAmount
         val earningsPerKm = if (kmDriven > 0) netProfit / kmDriven else 0.0
         val totalHours = totalMs / (1000.0 * 60 * 60)
+
+        val reserveSnapshot = calculateMaintenanceReserveUseCase(
+            reservePercent = reservePercent,
+            shifts = filteredShifts,
+            expenses = filteredExpenses
+        )
 
         // Generate Chart Data
         val chartData = generateChartData(period, startTimeMs, endTimeMs, filteredShifts)
@@ -174,7 +195,12 @@ class AnalyticsViewModel @Inject constructor(
             obdKFuelBandPct = calib.confidenceBandPct,
             obdKFuelStable = calib.isFuelStable,
             obdCalibratedCycles = calib.calibratedFuelCycles,
-            obdLitersComprados = litersComprados
+            obdLitersComprados = litersComprados,
+            maintenanceReservePercent = reserveSnapshot.reservePercent,
+            maintenanceReserveProvisionedCop = reserveSnapshot.provisionedCop,
+            maintenanceReserveUsedCop = reserveSnapshot.usedCop,
+            maintenanceReserveBalanceCop = reserveSnapshot.balanceCop,
+            maintenanceReserveHasData = reserveSnapshot.hasData
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AnalyticsUiState())
 
