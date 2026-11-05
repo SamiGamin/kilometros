@@ -17,6 +17,7 @@ data class Vehicle(
     val plate: String = "",
     val fuel: String = "GASOLINE", // GASOLINE, DIESEL, GLP, GNV, ELECTRIC
     val odometer: Int = 0,
+    val odometerPrecise: Double? = null,
     val soatExpiry: String? = null,
     val tecnomecExpiry: String? = null,
     val seguroExpiry: String? = null,

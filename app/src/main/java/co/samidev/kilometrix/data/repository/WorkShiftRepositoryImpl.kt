@@ -96,7 +96,12 @@ class WorkShiftRepositoryImpl @Inject constructor(
 
     // ── Write operations ───────────────────────────────────────────────────────
 
-    override suspend fun startShift(vehicleId: String, initialOdometer: Int, type: ShiftType): Result<String> {
+    override suspend fun startShift(
+        vehicleId: String,
+        initialOdometer: Int,
+        type: ShiftType,
+        initialOdometerPrecise: Double?
+    ): Result<String> {
         val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
         return try {
             val docRef = shiftsCol(userId).document()
@@ -106,6 +111,7 @@ class WorkShiftRepositoryImpl @Inject constructor(
                 "startTime" to System.currentTimeMillis(),
                 "endTime" to null,
                 "initialOdometer" to initialOdometer,
+                "initialOdometerPrecise" to initialOdometerPrecise,
                 "finalOdometer" to null,
                 "pausedDurationMs" to 0L,
                 "status" to ShiftStatus.ACTIVE.name,
@@ -117,9 +123,15 @@ class WorkShiftRepositoryImpl @Inject constructor(
 
             // Actualizar odómetro del vehículo al iniciar recorrido si initialOdometer > 0
             if (initialOdometer > 0) {
+                val vehicleUpdates = mutableMapOf<String, Any>(
+                    "odometer" to initialOdometer
+                )
+                if (initialOdometerPrecise != null) {
+                    vehicleUpdates["odometerPrecise"] = initialOdometerPrecise
+                }
                 db.collection("users").document(userId)
                     .collection("vehicles").document(vehicleId)
-                    .update("odometer", initialOdometer)
+                    .update(vehicleUpdates)
                     .await()
             }
 
@@ -176,7 +188,8 @@ class WorkShiftRepositoryImpl @Inject constructor(
         obdFuelFactorEwma: Double,
         obdFuelFactorStdev: Double,
         obdDistFactorMedian: Double,
-        netElevationChangeMeters: Int?
+        netElevationChangeMeters: Int?,
+        finalOdometerPrecise: Double?
     ): Result<Unit> {
         val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
         return try {
@@ -202,27 +215,26 @@ class WorkShiftRepositoryImpl @Inject constructor(
             val batch = db.batch()
 
             // 1. Finalizar turno (incluyendo telemetría, cobertura y diagnóstico OBD-II del recorrido)
-            batch.update(
-                docRef,
-                mapOf(
-                    "status" to ShiftStatus.ENDED.name,
-                    "endTime" to endTimeMillis,
-                    "finalOdometer" to finalOdometer,
-                    "obdDistanceKm" to obdDistanceKm,
-                    "obdFuelLitersRaw" to obdFuelLitersRaw,
-                    "obdCoveragePct" to obdCoveragePct,
-                    "obdMaxGapSec" to obdMaxGapSec,
-                    "obdGapCount" to obdGapCount,
-                    "obdValid" to obdValid,
-                    "obdConnectedAtStart" to obdConnectedAtStart,
-                    "obdConnectedAtEnd" to obdConnectedAtEnd,
-                    "obdSampleCount" to obdSampleCount,
-                    "obdMeanDtMs" to obdMeanDtMs,
-                    "obdIdleSec" to obdIdleSec,
-                    "obdCutoffSec" to obdCutoffSec,
-                    "netElevationChangeMeters" to netElevationChangeMeters
-                )
+            val shiftUpdates = mutableMapOf<String, Any?>(
+                "status" to ShiftStatus.ENDED.name,
+                "endTime" to endTimeMillis,
+                "finalOdometer" to finalOdometer,
+                "finalOdometerPrecise" to finalOdometerPrecise,
+                "obdDistanceKm" to obdDistanceKm,
+                "obdFuelLitersRaw" to obdFuelLitersRaw,
+                "obdCoveragePct" to obdCoveragePct,
+                "obdMaxGapSec" to obdMaxGapSec,
+                "obdGapCount" to obdGapCount,
+                "obdValid" to obdValid,
+                "obdConnectedAtStart" to obdConnectedAtStart,
+                "obdConnectedAtEnd" to obdConnectedAtEnd,
+                "obdSampleCount" to obdSampleCount,
+                "obdMeanDtMs" to obdMeanDtMs,
+                "obdIdleSec" to obdIdleSec,
+                "obdCutoffSec" to obdCutoffSec,
+                "netElevationChangeMeters" to netElevationChangeMeters
             )
+            batch.update(docRef, shiftUpdates)
 
             // 2. Si el turno tiene ganancias netas > 0, crear transacción en Kipu y actualizar balance del monedero
             if (totalEarnings > 0.0) {
@@ -269,15 +281,16 @@ class WorkShiftRepositoryImpl @Inject constructor(
             if (vehicleId != null && finalOdometer > 0) {
                 val vehicleRef = db.collection("users").document(userId)
                     .collection("vehicles").document(vehicleId)
-                batch.update(
-                    vehicleRef,
-                    mapOf(
-                        "odometer" to finalOdometer,
-                        "obdFuelFactorEwma" to obdFuelFactorEwma,
-                        "obdFuelFactorStdev" to obdFuelFactorStdev,
-                        "obdDistFactorMedian" to obdDistFactorMedian
-                    )
+                val vehicleUpdates = mutableMapOf<String, Any>(
+                    "odometer" to finalOdometer,
+                    "obdFuelFactorEwma" to obdFuelFactorEwma,
+                    "obdFuelFactorStdev" to obdFuelFactorStdev,
+                    "obdDistFactorMedian" to obdDistFactorMedian
                 )
+                if (finalOdometerPrecise != null) {
+                    vehicleUpdates["odometerPrecise"] = finalOdometerPrecise
+                }
+                batch.update(vehicleRef, vehicleUpdates)
             }
 
             batch.commit().await()
@@ -543,6 +556,8 @@ private fun DocumentSnapshot.toWorkShift(): WorkShift? {
             endTime = getLong("endTime"),
             initialOdometer = getLong("initialOdometer")?.toInt() ?: 0,
             finalOdometer = getLong("finalOdometer")?.toInt(),
+            initialOdometerPrecise = getDouble("initialOdometerPrecise"),
+            finalOdometerPrecise = getDouble("finalOdometerPrecise"),
             pausedDurationMs = getLong("pausedDurationMs") ?: 0L,
             status = try {
                 ShiftStatus.valueOf(getString("status") ?: "ACTIVE")

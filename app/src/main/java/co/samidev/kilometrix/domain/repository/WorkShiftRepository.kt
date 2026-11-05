@@ -17,7 +17,12 @@ interface WorkShiftRepository {
     fun getShiftsForVehicle(vehicleId: String): Flow<List<WorkShift>>
 
     /** Crea un nuevo turno en Firestore y retorna el ID generado. */
-    suspend fun startShift(vehicleId: String, initialOdometer: Int, type: ShiftType = ShiftType.WORK): Result<String>
+    suspend fun startShift(
+        vehicleId: String,
+        initialOdometer: Int,
+        type: ShiftType = ShiftType.WORK,
+        initialOdometerPrecise: Double? = null
+    ): Result<String>
 
     /** Pausa el turno: guarda el timestamp de pausa. */
     suspend fun pauseShift(shiftId: String): Result<Unit>
@@ -50,7 +55,8 @@ interface WorkShiftRepository {
         obdFuelFactorEwma: Double = 1.0,
         obdFuelFactorStdev: Double = 0.0,
         obdDistFactorMedian: Double = 1.0,
-        netElevationChangeMeters: Int? = null
+        netElevationChangeMeters: Int? = null,
+        finalOdometerPrecise: Double? = null
     ): Result<Unit>
 
     /** Actualiza la altitud inicial en metros (GPS) al comenzar el turno. */
