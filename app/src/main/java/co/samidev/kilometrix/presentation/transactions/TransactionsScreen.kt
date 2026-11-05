@@ -709,6 +709,47 @@ private fun ShiftCard(
                 }
             }
 
+            if (shift.netElevationChangeMeters != null) {
+                val delta = shift.netElevationChangeMeters
+                val (icon, text) = when {
+                    delta <= -200 -> "🔽" to "Descenso ${-delta} m"
+                    delta >= 200  -> "🔼" to "Ascenso ${delta} m"
+                    else          -> "↔️" to "Plano (±${kotlin.math.abs(delta)} m)"
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                when {
+                                    delta <= -200 -> Color(0xFF60A5FA).copy(alpha = 0.15f)
+                                    delta >= 200  -> Color(0xFFFFB95F).copy(alpha = 0.15f)
+                                    else          -> SurfaceContainerHigh
+                                }
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            "$icon $text",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OnSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    if (kotlin.math.abs(delta) >= 200) {
+                        Text(
+                            "Explica la varianza de consumo",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OnSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
             // Time, Duration & Distance Grid
             Row(
                 modifier = Modifier
