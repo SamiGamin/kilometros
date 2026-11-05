@@ -577,7 +577,9 @@ private fun ShiftCard(
 
     // NUEVO: distancia real con precisión cuando hay OBD
     val displayDistanceKm: String = when {
-        shift.obdDistanceKm > 0.01 -> String.format("%.2f km", shift.obdDistanceKm)
+        shift.obdDistanceKm > 0.01 -> String.format(java.util.Locale.US, "%.2f km", shift.obdDistanceKm)
+        shift.finalOdometerPrecise != null && shift.initialOdometerPrecise != null ->
+            String.format(java.util.Locale.US, "%.2f km", shift.finalOdometerPrecise - shift.initialOdometerPrecise)
         realKm > 0 -> "$realKm km"
         else -> "—"
     }

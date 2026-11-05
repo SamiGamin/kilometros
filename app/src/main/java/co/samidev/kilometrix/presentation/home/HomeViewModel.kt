@@ -91,6 +91,7 @@ data class HomeUiState(
     val fuelSourceLabel: String = "⏳ Calibrando 1er ciclo",
     val suggestedFinalOdometer: Int = 0,
     val suggestedFinalOdometerPrecise: Double = 0.0,
+    val lastKnownOdometerPrecise: Double? = null,
     val obdEstimatedDistanceKm: Double = 0.0,
     val lastRefuelPricePerLiterCop: Double = 0.0
 )
@@ -327,6 +328,15 @@ class HomeViewModel @Inject constructor(
 
         val suggestedFinalOd = shift?.initialOdometer ?: 0
 
+        val lastClosedShift = core.allShifts
+            .filter { it.status == ShiftStatus.ENDED && it.finalOdometer != null }
+            .maxByOrNull { it.endTime ?: it.startTime }
+
+        val lastKnownOdometerPrecise = lastClosedShift?.finalOdometerPrecise
+            ?: vehicle?.odometerPrecise
+            ?: lastClosedShift?.finalOdometer?.toDouble()
+            ?: vehicle?.odometer?.toDouble()
+
         HomeUiState(
             userName = userName,
             currentDateText = dateText,
@@ -362,8 +372,9 @@ class HomeViewModel @Inject constructor(
             fuelSourceLabel = fuelSourceLabel,
             suggestedFinalOdometer = suggestedFinalOd,
             suggestedFinalOdometerPrecise = if (shift != null) {
-                shift.initialOdometer + estKm
+                (shift.initialOdometerPrecise ?: shift.initialOdometer.toDouble()) + estKm
             } else 0.0,
+            lastKnownOdometerPrecise = lastKnownOdometerPrecise,
             obdEstimatedDistanceKm = estKm,
             lastRefuelPricePerLiterCop = lastRefuelPricePerLiter
         )
@@ -433,6 +444,7 @@ class HomeViewModel @Inject constructor(
 
     fun startShift(
         initialOdometer: Int,
+        initialOdometerPrecise: Double? = null,
         type: co.samidev.kilometrix.domain.model.ShiftType = co.samidev.kilometrix.domain.model.ShiftType.WORK
     ) {
         val vehicle = uiState.value.activeVehicle ?: run {
@@ -447,7 +459,12 @@ class HomeViewModel @Inject constructor(
             actionLoading.value = true
             errorMessage.value = null
             val startAltitudeMeters = altitudeProvider.readAltitudeMeters()
-            val result = workShiftRepository.startShift(vehicle.id, initialOdometer, type)
+            val result = workShiftRepository.startShift(
+                vehicleId = vehicle.id,
+                initialOdometer = initialOdometer,
+                type = type,
+                initialOdometerPrecise = initialOdometerPrecise
+            )
             actionLoading.value = false
             result.onSuccess { shiftId ->
                 if (startAltitudeMeters != null) {
@@ -501,7 +518,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun endShift(finalOdometer: Int) {
+    fun endShift(finalOdometer: Int, finalOdometerPrecise: Double? = null) {
         val shift = uiState.value.activeShift ?: return
         val obdMetrics = obdSessionState.snapshot.value.metrics
         val isConnectedAtEnd = uiState.value.isObdConnected
@@ -532,7 +549,8 @@ class HomeViewModel @Inject constructor(
                 obdFuelFactorEwma = calFactors.kFuel,
                 obdFuelFactorStdev = calFactors.obdFuelFactorStdev,
                 obdDistFactorMedian = calFactors.kDist,
-                netElevationChangeMeters = netDelta
+                netElevationChangeMeters = netDelta,
+                finalOdometerPrecise = finalOdometerPrecise
             )
             actionLoading.value = false
             if (result.isSuccess) {
