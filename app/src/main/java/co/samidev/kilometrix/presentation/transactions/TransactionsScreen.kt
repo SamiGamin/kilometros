@@ -575,6 +575,13 @@ private fun ShiftCard(
         shift.finalOdometer - shift.initialOdometer
     } else 0
 
+    // NUEVO: distancia real con precisión cuando hay OBD
+    val displayDistanceKm: String = when {
+        shift.obdDistanceKm > 0.01 -> String.format("%.2f km", shift.obdDistanceKm)
+        realKm > 0 -> "$realKm km"
+        else -> "—"
+    }
+
     val effectiveMs = remember(shift) {
         val endTimeLimit = shift.endTime ?: System.currentTimeMillis()
         maxOf(0L, endTimeLimit - shift.startTime - shift.pausedDurationMs)
@@ -693,7 +700,7 @@ private fun ShiftCard(
                         onClick = {
                             onDeleteShift(
                                 shift.id,
-                                "el recorrido del ${dayFmt.format(Date(shift.startTime))} (${if (realKm > 0) "$realKm km" else "en curso"})"
+                                "el recorrido del ${dayFmt.format(Date(shift.startTime))} ($displayDistanceKm)"
                             )
                         },
                         modifier = Modifier.size(24.dp)
@@ -778,7 +785,7 @@ private fun ShiftCard(
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Distancia", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Text(
-                        text = if (realKm > 0) "$realKm km" else "En trayecto",
+                        text = displayDistanceKm,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         color = Primary
