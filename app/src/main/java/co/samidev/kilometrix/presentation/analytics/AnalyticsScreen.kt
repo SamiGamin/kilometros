@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -156,6 +157,98 @@ fun AnalyticsScreen(viewModel: AnalyticsViewModel = hiltViewModel()) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MetricCard("Km Recorridos", "${uiState.kmDriven} km", OnSurface, modifier = Modifier.weight(1f))
             MetricCard("Flujo / Km", "$ ${currencyFmt.format(uiState.earningsPerKm.toLong())}", OnSurface, modifier = Modifier.weight(1f))
+        }
+
+        if (uiState.maintenanceReserveHasData) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = SurfaceContainerLow,
+                border = BorderStroke(1.dp, CardBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "🔧 FONDO DE MANTENIMIENTO",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Tertiary
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Tertiary.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                "${uiState.maintenanceReservePercent}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Tertiary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Provisionado", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                            Text(
+                                "$ ${currencyFmt.format(uiState.maintenanceReserveProvisionedCop.toLong())}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = OnSurface
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Usado", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                            Text(
+                                "$ ${currencyFmt.format(uiState.maintenanceReserveUsedCop.toLong())}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Error
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Saldo", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                            val balance = uiState.maintenanceReserveBalanceCop
+                            val balanceColor = when {
+                                balance > 0 -> Secondary
+                                balance < 0 -> Error
+                                else -> OnSurfaceVariant
+                            }
+                            Text(
+                                (if (balance >= 0) "$ " else "-$ ") + currencyFmt.format(kotlin.math.abs(balance).toLong()),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = balanceColor
+                            )
+                        }
+                    }
+
+                    val helperText = when {
+                        uiState.maintenanceReserveBalanceCop > 0 ->
+                            "Tu colchón preventivo cubre futuros mantenimientos."
+                        uiState.maintenanceReserveBalanceCop < 0 ->
+                            "Has gastado más de lo provisionado en este período."
+                        else ->
+                            "Sin movimientos de mantenimiento en este período."
+                    }
+                    Text(
+                        helperText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = OnSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
         }
 
         Box(
