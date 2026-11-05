@@ -42,8 +42,6 @@ fun HomeScreen(
             .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Spacer(Modifier.height(48.dp))
-
         // ── Header (card 0) ─────────────────────────────────────────────────
         val (h0Alpha, h0Ty) = staggeredEntrance(0)
         HomeHeaderCard(
