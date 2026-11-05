@@ -92,13 +92,14 @@ fun VehicleMetricsGrid(
 
             // Card 2: Mantenimiento Aceite
             val remainingKm = vehicle.remainingOilKm
-            val oilFraction = if (vehicle.oilIntervalKm > 0) {
+            val oilFraction = if (vehicle.oilStatus == OilStatus.NO_DATA) 0f else if (vehicle.oilIntervalKm > 0) {
                 (remainingKm.toFloat() / vehicle.oilIntervalKm.toFloat()).coerceIn(0f, 1f)
             } else 0.5f
 
             val gaugeColor = when (vehicle.oilStatus) {
                 OilStatus.EXPIRED -> Error
                 OilStatus.SOON -> Color(0xFFFF9800)
+                OilStatus.NO_DATA -> OnSurfaceVariant
                 OilStatus.OK -> Secondary
             }
 
