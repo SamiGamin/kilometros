@@ -132,6 +132,7 @@ fun HomeScreen(
     if (showStartShiftDialog) {
         StartShiftDialog(
             defaultOdometer = uiState.activeVehicle?.odometer ?: 0,
+            lastKnownOdometerPrecise = uiState.lastKnownOdometerPrecise,
             isObdConnected = uiState.isObdConnected,
             obdLiveRpm = uiState.obdLiveRpm,
             onConnectObdClick = {
@@ -139,8 +140,8 @@ fun HomeScreen(
                 showObdSheet = true
             },
             onDismiss = { showStartShiftDialog = false },
-            onConfirm = { od, type ->
-                viewModel.startShift(od, type)
+            onConfirm = { od, odPrecise, type ->
+                viewModel.startShift(od, odPrecise, type)
                 showStartShiftDialog = false
             }
         )
@@ -217,8 +218,8 @@ fun HomeScreen(
             suggestedFinalOdometerPrecise = uiState.suggestedFinalOdometerPrecise,
             obdEstimatedDistanceKm = uiState.obdEstimatedDistanceKm,
             onDismiss = { showEndShiftDialog = false },
-            onConfirm = { finalOd ->
-                viewModel.endShift(finalOd)
+            onConfirm = { finalOd, finalOdPrecise ->
+                viewModel.endShift(finalOd, finalOdPrecise)
                 showEndShiftDialog = false
             }
         )

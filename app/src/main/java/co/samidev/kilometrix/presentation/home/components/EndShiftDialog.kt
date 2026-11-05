@@ -25,17 +25,21 @@ fun EndShiftDialog(
     suggestedFinalOdometerPrecise: Double = 0.0,
     obdEstimatedDistanceKm: Double = 0.0,
     onDismiss: () -> Unit,
-    onConfirm: (finalOdometer: Int) -> Unit
+    onConfirm: (finalOdometer: Int, finalOdometerPrecise: Double?) -> Unit
 ) {
     val initOd = shift?.initialOdometer ?: 0
-    val initialText = if (suggestedFinalOdometer > initOd + 1) {
-        suggestedFinalOdometer.toString()
-    } else ""
-    var finalOdText by remember(suggestedFinalOdometer, initOd) { mutableStateOf(initialText) }
-    val finalOd = finalOdText.toIntOrNull() ?: 0
-    val diffKm = finalOd - initOd
-    val isExaggerated = diffKm > 1000 || finalOd > 1_500_000
-    val isOdValid = finalOd >= initOd && !isExaggerated
+    val initOdPrecise = shift?.initialOdometerPrecise ?: (shift?.initialOdometer?.toDouble() ?: 0.0)
+    val initialText = when {
+        suggestedFinalOdometerPrecise > (shift?.initialOdometerPrecise ?: (shift?.initialOdometer?.toDouble() ?: 0.0)) + 0.5 ->
+            String.format(java.util.Locale.US, "%.2f", suggestedFinalOdometerPrecise)
+        else -> ""
+    }
+    var finalOdText by remember(suggestedFinalOdometerPrecise, initOdPrecise) { mutableStateOf(initialText) }
+    val parsedPrecise = finalOdText.replace(',', '.').toDoubleOrNull()
+    val parsedInt = parsedPrecise?.toInt() ?: 0
+    val diffKm = (parsedPrecise ?: 0.0) - initOdPrecise
+    val isExaggerated = diffKm > 1000.0 || (parsedPrecise ?: 0.0) > 1_500_000.0
+    val isOdValid = parsedPrecise != null && parsedPrecise >= initOdPrecise && !isExaggerated
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -80,22 +84,31 @@ fun EndShiftDialog(
 
             OutlinedTextField(
                 value = finalOdText,
-                onValueChange = { if (it.all { c -> c.isDigit() }) finalOdText = it },
+                onValueChange = { input ->
+                    val normalized = input.replace(',', '.')
+                    if (normalized.count { it == '.' } <= 1 && normalized.all { it.isDigit() || it == '.' }) {
+                        finalOdText = normalized
+                    }
+                },
                 label = { Text("Odómetro final (km)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                visualTransformation = ThousandSeparatorVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 isError = finalOdText.isNotBlank() && !isOdValid,
                 supportingText = {
                     when {
-                        finalOdText.isNotBlank() && finalOd < initOd -> {
+                        finalOdText.isNotBlank() && (parsedPrecise ?: 0.0) < initOdPrecise -> {
+                            val initDisplay = if (shift?.initialOdometerPrecise != null) {
+                                String.format(java.util.Locale.US, "%.2f", shift.initialOdometerPrecise)
+                            } else {
+                                homeCurrencyFmt.format(initOd)
+                            }
                             Text(
-                                "Debe ser mayor o igual al inicial (${homeCurrencyFmt.format(initOd)} km)",
+                                "Debe ser mayor o igual al inicial ($initDisplay km)",
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
                         finalOdText.isNotBlank() && isExaggerated -> {
                             Text(
-                                "⚠️ Son +${homeCurrencyFmt.format(diffKm)} km. Verifica si escribiste un número de más.",
+                                "⚠️ Son +${String.format(java.util.Locale.US, "%.1f", diffKm)} km. Verifica si escribiste un número de más.",
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
@@ -103,13 +116,18 @@ fun EndShiftDialog(
                             // Mostrar distancia OBD precisa cuando está disponible
                             val preciseOdometer = suggestedFinalOdometerPrecise
                             Text(
-                                "📡 OBD midió ${String.format("%.2f", obdEstimatedDistanceKm)} km " +
-                                "(odómetro ~${String.format("%.1f", preciseOdometer)} km)",
+                                "📡 OBD midió ${String.format(java.util.Locale.US, "%.2f", obdEstimatedDistanceKm)} km " +
+                                "(odómetro ~${String.format(java.util.Locale.US, "%.2f", preciseOdometer)} km)",
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
                         else -> {
-                            Text("Odómetro inicial: ${homeCurrencyFmt.format(initOd)} km")
+                            val initDisplay = if (shift?.initialOdometerPrecise != null) {
+                                String.format(java.util.Locale.US, "%.2f", shift.initialOdometerPrecise)
+                            } else {
+                                homeCurrencyFmt.format(initOd)
+                            }
+                            Text("Odómetro inicial: $initDisplay km")
                         }
                     }
                 },
@@ -118,12 +136,12 @@ fun EndShiftDialog(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            if (isOdValid && finalOd > 0) {
-                val realKm = finalOd - initOd
+            if (isOdValid && parsedInt > 0) {
+                val realKm = (parsedPrecise ?: 0.0) - initOdPrecise
                 val displayKm = if (obdEstimatedDistanceKm > 0.01) {
-                    String.format("%.2f km", obdEstimatedDistanceKm)
+                    String.format(java.util.Locale.US, "%.2f km", obdEstimatedDistanceKm)
                 } else {
-                    "$realKm km"
+                    String.format(java.util.Locale.US, "%.2f km", realKm)
                 }
                 Surface(
                     shape = RoundedCornerShape(10.dp),
@@ -169,8 +187,14 @@ fun EndShiftDialog(
                 }
                 Spacer(Modifier.width(8.dp))
                 Button(
-                    onClick = { if (isOdValid && finalOd > 0) onConfirm(finalOd) },
-                    enabled = isOdValid && finalOd > 0,
+                    onClick = {
+                        val pPrecise = finalOdText.replace(',', '.').toDoubleOrNull()
+                        val pInt = pPrecise?.toInt() ?: 0
+                        if (isOdValid && pInt > 0) {
+                            onConfirm(pInt, pPrecise)
+                        }
+                    },
+                    enabled = isOdValid && parsedInt > 0,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(if (isShortTrip) "Finalizar de todas formas" else "Finalizar Recorrido")

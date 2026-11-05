@@ -28,11 +28,12 @@ import co.samidev.kilometrix.ui.theme.*
 @Composable
 fun StartShiftDialog(
     defaultOdometer: Int,
+    lastKnownOdometerPrecise: Double? = null,
     isObdConnected: Boolean = false,
     obdLiveRpm: Int? = null,
     onConnectObdClick: () -> Unit = {},
     onDismiss: () -> Unit,
-    onConfirm: (odometer: Int, type: ShiftType) -> Unit
+    onConfirm: (odometer: Int, odometerPrecise: Double?, type: ShiftType) -> Unit
 ) {
     val context = LocalContext.current
     var hasLocationPermission by remember {
@@ -54,7 +55,12 @@ fun StartShiftDialog(
         }
     }
 
-    var odText by remember { mutableStateOf(if (defaultOdometer > 0) defaultOdometer.toString() else "") }
+    var odText by remember {
+        mutableStateOf(
+            lastKnownOdometerPrecise?.let { String.format(java.util.Locale.US, "%.2f", it) }
+                ?: if (defaultOdometer > 0) defaultOdometer.toString() else ""
+        )
+    }
     var selectedType by remember { mutableStateOf(ShiftType.WORK) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -150,10 +156,21 @@ fun StartShiftDialog(
 
             OutlinedTextField(
                 value = odText,
-                onValueChange = { if (it.all { char -> char.isDigit() }) odText = it },
+                onValueChange = { input ->
+                    val normalized = input.replace(',', '.')
+                    if (normalized.count { it == '.' } <= 1 && normalized.all { it.isDigit() || it == '.' }) {
+                        odText = normalized
+                    }
+                },
                 label = { Text("Odómetro inicial de tablero (km)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                visualTransformation = ThousandSeparatorVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                supportingText = {
+                    if (lastKnownOdometerPrecise != null) {
+                        Text("📡 Último cierre: ${String.format(java.util.Locale.US, "%.2f", lastKnownOdometerPrecise)} km")
+                    } else {
+                        Text("Ingresa el odómetro (puedes usar decimales)")
+                    }
+                },
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -214,12 +231,13 @@ fun StartShiftDialog(
                 Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = {
-                        val od = odText.toIntOrNull() ?: 0
-                        if (od > 0 && isObdConnected) {
-                            onConfirm(od, selectedType)
+                        val parsedPrecise = odText.toDoubleOrNull()
+                        val parsedInt = parsedPrecise?.toInt() ?: 0
+                        if (parsedInt > 0 && isObdConnected) {
+                            onConfirm(parsedInt, parsedPrecise, selectedType)
                         }
                     },
-                    enabled = (odText.toIntOrNull() ?: 0) > 0 && isObdConnected
+                    enabled = (odText.toDoubleOrNull() ?: 0.0) > 0.0 && isObdConnected
                 ) {
                     Text("Iniciar Recorrido")
                 }
