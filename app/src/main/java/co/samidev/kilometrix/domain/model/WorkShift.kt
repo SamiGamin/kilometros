@@ -31,7 +31,9 @@ data class WorkShift(
     val obdSampleCount: Int = 0,            // Total de muestras integradas en el turno
     val obdMeanDtMs: Double = 0.0,          // Intervalo promedio entre muestras (ms)
     val obdIdleSec: Double = 0.0,           // Segundos acumulados en régimen de ralentí
-    val obdCutoffSec: Double = 0.0          // Segundos acumulados en corte de inyección (DFCO)
+    val obdCutoffSec: Double = 0.0,         // Segundos acumulados en corte de inyección (DFCO)
+    val startAltitudeMeters: Double? = null,
+    val netElevationChangeMeters: Int? = null  // Δaltura cierre − inicio. null = sin datos
 )
 
 enum class ShiftStatus { ACTIVE, PAUSED, ENDED }
