@@ -471,6 +471,92 @@ fun ProfileScreen(onLogout: () -> Unit) {
                         color = Tertiary
                     )
                 }
+
+                // ── NUEVO: Fondo acumulado histórico (P24b) ──
+                if (uiState.maintenanceReserveHasData) {
+                    HorizontalDivider(
+                        color = OutlineVariant.copy(alpha = 0.2f),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Acumulado histórico",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = OnSurfaceVariant
+                            )
+                            if (uiState.maintenanceReserveVehicleName.isNotBlank()) {
+                                Text(
+                                    "🚗 ${uiState.maintenanceReserveVehicleName}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = OnSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Provisionado", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                Text(
+                                    "$ ${currencyFormat.format(uiState.maintenanceReserveProvisionedCop.toLong())}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = OnSurface
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Usado", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                Text(
+                                    "$ ${currencyFormat.format(uiState.maintenanceReserveUsedCop.toLong())}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Error
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Saldo", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                val balance = uiState.maintenanceReserveBalanceCop
+                                val balanceColor = when {
+                                    balance > 0 -> Secondary
+                                    balance < 0 -> Error
+                                    else -> OnSurfaceVariant
+                                }
+                                Text(
+                                    (if (balance >= 0) "$ " else "-$ ") +
+                                        currencyFormat.format(kotlin.math.abs(balance).toLong()),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = balanceColor
+                                )
+                            }
+                        }
+
+                        val helper = when {
+                            uiState.maintenanceReserveBalanceCop > 0 ->
+                                "Tu colchón preventivo cubre futuros mantenimientos."
+                            uiState.maintenanceReserveBalanceCop < 0 ->
+                                "Has gastado más de lo provisionado. Considera aumentar el % o registrar el gasto."
+                            else ->
+                                "Aún sin movimientos de mantenimiento."
+                        }
+                        Text(
+                            helper,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = OnSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(8.dp))
