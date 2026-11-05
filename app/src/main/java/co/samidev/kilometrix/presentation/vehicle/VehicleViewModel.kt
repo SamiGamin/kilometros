@@ -86,8 +86,14 @@ class VehicleViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<VehicleUiState>(VehicleUiState.Idle)
     val uiState: StateFlow<VehicleUiState> = _uiState
 
-    fun setActiveVehicle(vehicleId: String) {
+    fun setActiveVehicle(vehicleId: String): Result<Unit> {
+        if (hasActiveShift.value && vehicleId != activeVehicleId.value) {
+            return Result.failure(
+                IllegalStateException("Debes finalizar el recorrido actual antes de cambiar de vehículo.")
+            )
+        }
         activeVehicleRepository.setActiveVehicleId(vehicleId)
+        return Result.success(Unit)
     }
 
     fun getPicoPlacaStatus(
@@ -104,8 +110,9 @@ class VehicleViewModel @Inject constructor(
             val result = addVehicleUseCase(vehicle)
             if (result.isSuccess) {
                 _uiState.value = VehicleUiState.Success
-                result.getOrNull()?.let { newId ->
-                    setActiveVehicle(newId)
+                // Solo setear activo si no hay turno abierto
+                if (!hasActiveShift.value) {
+                    result.getOrNull()?.let { newId -> setActiveVehicle(newId) }
                 }
             } else {
                 val errorMsg = result.exceptionOrNull()?.message ?: "Error al agregar vehículo"

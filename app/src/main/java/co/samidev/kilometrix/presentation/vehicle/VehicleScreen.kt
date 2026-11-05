@@ -91,8 +91,12 @@ fun VehicleScreen() {
                 activeVehicleId = activeVehicleId,
                 hasActiveShift = hasActiveShift,
                 onSelectVehicle = { vehicle ->
-                    selectedVehicle = vehicle
-                    viewModel.setActiveVehicle(vehicle.id)
+                    val result = viewModel.setActiveVehicle(vehicle.id)
+                    if (result.isFailure) {
+                        showBlockedChangeToast()
+                    } else {
+                        selectedVehicle = vehicle
+                    }
                 },
                 onBlockedChange = showBlockedChangeToast
             )
@@ -107,7 +111,12 @@ fun VehicleScreen() {
                     isAppActive = isAppActive,
                     picoPlacaStatus = picoPlacaStatus,
                     hasActiveShift = hasActiveShift,
-                    onActivate = { viewModel.setActiveVehicle(vehicle.id) },
+                    onActivate = {
+                        val result = viewModel.setActiveVehicle(vehicle.id)
+                        if (result.isFailure) {
+                            showBlockedChangeToast()
+                        }
+                    },
                     onEdit = { showEditDialog = true },
                     onRegisterOilChange = { showQuickOilDialog = true },
                     onUpdateVehicle = { updated ->
