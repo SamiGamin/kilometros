@@ -7,6 +7,7 @@ import co.samidev.kilometrix.domain.repository.UserRepository
 import co.samidev.kilometrix.domain.usecase.GetDriverStatsUseCase
 import co.samidev.kilometrix.domain.usecase.UpdateUserProfileUseCase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -212,25 +213,28 @@ class ProfileViewModel @Inject constructor(
             _internalState.update { it.copy(isLoading = true) }
             try {
                 val currentUser = auth.currentUser
-                if (currentUser != null) {
-                    val uid = currentUser.uid
-                    // 1. Delete vehicles in user's subcollection
-                    val vehicles = db.collection("users").document(uid).collection("vehicles").get().await()
-                    for (doc in vehicles.documents) {
-                        doc.reference.delete().await()
-                    }
-                    // 2. Delete user profile document
-                    db.collection("users").document(uid).delete().await()
-
-                    // 3. Delete Firebase Auth user
-                    currentUser.delete().await()
-
-                    _internalState.update { it.copy(isLoading = false) }
-                    _eventChannel.send(ProfileUiEvent.AccountDeleted)
-                } else {
+                if (currentUser == null) {
                     _internalState.update { it.copy(isLoading = false) }
                     _eventChannel.send(ProfileUiEvent.ShowSnackbar("No hay sesión activa para eliminar"))
+                    return@launch
                 }
+                val uid = currentUser.uid
+                val userRef = db.collection("users").document(uid)
+
+                // 1. Borrar subcolecciones en cascada (Firestore NO las borra automáticamente)
+                val subcollections = listOf("workShifts", "expenses", "transactions", "wallets", "vehicles")
+                for (sub in subcollections) {
+                    deleteSubcollectionInBatches(userRef.collection(sub))
+                }
+
+                // 2. Borrar el doc del user
+                userRef.delete().await()
+
+                // 3. Borrar la cuenta de Auth
+                currentUser.delete().await()
+
+                _internalState.update { it.copy(isLoading = false) }
+                _eventChannel.send(ProfileUiEvent.AccountDeleted)
             } catch (e: Exception) {
                 _internalState.update { it.copy(isLoading = false) }
                 _eventChannel.send(
@@ -239,6 +243,16 @@ class ProfileViewModel @Inject constructor(
                     )
                 )
             }
+        }
+    }
+
+    private suspend fun deleteSubcollectionInBatches(collection: CollectionReference) {
+        while (true) {
+            val snapshot = collection.limit(499).get().await()
+            if (snapshot.isEmpty) break
+            val batch = db.batch()
+            snapshot.documents.forEach { batch.delete(it.reference) }
+            batch.commit().await()
         }
     }
 }
