@@ -86,8 +86,14 @@ class VehicleViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<VehicleUiState>(VehicleUiState.Idle)
     val uiState: StateFlow<VehicleUiState> = _uiState
 
-    fun setActiveVehicle(vehicleId: String) {
+    fun setActiveVehicle(vehicleId: String): Result<Unit> {
+        if (hasActiveShift.value && vehicleId != activeVehicleId.value) {
+            return Result.failure(
+                IllegalStateException("Debes finalizar el recorrido actual antes de cambiar de vehículo.")
+            )
+        }
         activeVehicleRepository.setActiveVehicleId(vehicleId)
+        return Result.success(Unit)
     }
 
     fun getPicoPlacaStatus(
@@ -104,79 +110,14 @@ class VehicleViewModel @Inject constructor(
             val result = addVehicleUseCase(vehicle)
             if (result.isSuccess) {
                 _uiState.value = VehicleUiState.Success
-                result.getOrNull()?.let { newId ->
-                    setActiveVehicle(newId)
+                // Solo setear activo si no hay turno abierto
+                if (!hasActiveShift.value) {
+                    result.getOrNull()?.let { newId -> setActiveVehicle(newId) }
                 }
             } else {
                 val errorMsg = result.exceptionOrNull()?.message ?: "Error al agregar vehículo"
                 _uiState.value = VehicleUiState.Error(errorMsg)
             }
-        }
-    }
-
-    fun seedDemoVehicles() {
-        viewModelScope.launch {
-            _uiState.value = VehicleUiState.Loading
-            val demoVehicles = listOf(
-                Vehicle(
-                    type = "PARTICULAR",
-                    nickname = "Sparky",
-                    brand = "Chevrolet",
-                    model = "Spark GT",
-                    year = 2021,
-                    plate = "QIR098",
-                    fuel = "GASOLINE",
-                    odometer = 45200,
-                    soatExpiry = "15/12/2026",
-                    soatEnabled = true
-                ),
-                Vehicle(
-                    type = "PARTICULAR",
-                    nickname = "La Bestia",
-                    brand = "Toyota",
-                    model = "Hilux 4x4",
-                    year = 2023,
-                    plate = "TSU456",
-                    fuel = "DIESEL",
-                    odometer = 82100,
-                    soatExpiry = "20/08/2026",
-                    tecnomecExpiry = "20/08/2026",
-                    soatEnabled = true,
-                    tecnomecEnabled = true
-                ),
-                Vehicle(
-                    type = "PARTICULAR",
-                    nickname = "El Económico",
-                    brand = "Renault",
-                    model = "Logan",
-                    year = 2020,
-                    plate = "MXN123",
-                    fuel = "GNV",
-                    odometer = 115000,
-                    soatEnabled = true
-                ),
-                Vehicle(
-                    type = "PARTICULAR",
-                    nickname = "Rayo EV",
-                    brand = "BYD",
-                    model = "Yuan Plus",
-                    year = 2024,
-                    plate = "EVX789",
-                    fuel = "ELECTRIC",
-                    odometer = 18500,
-                    soatExpiry = "10/01/2027",
-                    soatEnabled = true
-                )
-            )
-            var firstId: String? = null
-            for (v in demoVehicles) {
-                val res = addVehicleUseCase(v)
-                if (firstId == null) {
-                    firstId = res.getOrNull()
-                }
-            }
-            firstId?.let { setActiveVehicle(it) }
-            _uiState.value = VehicleUiState.Success
         }
     }
 

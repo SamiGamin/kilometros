@@ -31,6 +31,8 @@ fun DocumentCard(
     modifier: Modifier = Modifier
 ) {
     val progressFraction = calculateDateFraction(expiryDate)
+    val isExpired = progressFraction <= 0.05f
+    val progressColor = if (isExpired) MaterialTheme.colorScheme.error else Primary
 
     Row(
         modifier = modifier
@@ -79,7 +81,9 @@ fun DocumentCard(
                     maxLines = 1,
                     modifier = Modifier.basicMarquee(),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = if (isEnabled && expiryDate.isNotBlank()) Secondary else OnSurfaceVariant
+                    color = if (isEnabled && expiryDate.isNotBlank()) {
+                        if (isExpired) MaterialTheme.colorScheme.error else Secondary
+                    } else OnSurfaceVariant
                 )
 
                 // Mini progress bar
@@ -93,10 +97,10 @@ fun DocumentCard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(progressFraction)
+                                .fillMaxWidth(if (progressFraction <= 0f) 1f else progressFraction)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(Primary)
+                                .background(progressColor)
                         )
                     }
                 }
@@ -125,7 +129,7 @@ private fun calculateDateFraction(expiryDate: String): Float {
         val now = System.currentTimeMillis()
         val diffDays = (date.time - now) / (1000 * 60 * 60 * 24)
         when {
-            diffDays <= 0 -> 0.05f
+            diffDays <= 0 -> 0f
             diffDays >= 365 -> 1.0f
             else -> (diffDays.toFloat() / 365f).coerceIn(0.1f, 1.0f)
         }

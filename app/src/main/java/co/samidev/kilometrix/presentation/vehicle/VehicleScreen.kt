@@ -24,6 +24,20 @@ fun VehicleScreen() {
     val picoPlacaState by viewModel.picoPlacaState.collectAsState()
     val hasActiveShift by viewModel.hasActiveShift.collectAsState()
     val context = LocalContext.current
+    val vehicleUiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(vehicleUiState) {
+        when (val state = vehicleUiState) {
+            is VehicleUiState.Error -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+                viewModel.resetUiState()
+            }
+            is VehicleUiState.Success -> {
+                viewModel.resetUiState()
+            }
+            else -> Unit
+        }
+    }
 
     var selectedVehicle by remember { mutableStateOf<Vehicle?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -77,8 +91,12 @@ fun VehicleScreen() {
                 activeVehicleId = activeVehicleId,
                 hasActiveShift = hasActiveShift,
                 onSelectVehicle = { vehicle ->
-                    selectedVehicle = vehicle
-                    viewModel.setActiveVehicle(vehicle.id)
+                    val result = viewModel.setActiveVehicle(vehicle.id)
+                    if (result.isFailure) {
+                        showBlockedChangeToast()
+                    } else {
+                        selectedVehicle = vehicle
+                    }
                 },
                 onBlockedChange = showBlockedChangeToast
             )
@@ -93,7 +111,12 @@ fun VehicleScreen() {
                     isAppActive = isAppActive,
                     picoPlacaStatus = picoPlacaStatus,
                     hasActiveShift = hasActiveShift,
-                    onActivate = { viewModel.setActiveVehicle(vehicle.id) },
+                    onActivate = {
+                        val result = viewModel.setActiveVehicle(vehicle.id)
+                        if (result.isFailure) {
+                            showBlockedChangeToast()
+                        }
+                    },
                     onEdit = { showEditDialog = true },
                     onRegisterOilChange = { showQuickOilDialog = true },
                     onUpdateVehicle = { updated ->
@@ -104,8 +127,6 @@ fun VehicleScreen() {
                 )
             }
         }
-
-        Spacer(Modifier.height(80.dp))
     }
 
     if (showAddDialog) {

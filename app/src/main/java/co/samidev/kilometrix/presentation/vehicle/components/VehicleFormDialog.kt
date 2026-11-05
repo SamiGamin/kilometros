@@ -102,7 +102,10 @@ fun VehicleFormDialog(
         }
     }
 
-    val isFormValid = plate.isNotBlank() && brand.isNotBlank() && yearStr.toIntOrNull() != null
+    val lastOil = lastOilChangeKmStr.toIntOrNull()
+    val currentOdometer = odometerStr.toIntOrNull() ?: 0
+    val isValidLastOil = lastOil == null || lastOil <= currentOdometer
+    val isFormValid = plate.isNotBlank() && brand.isNotBlank() && yearStr.toIntOrNull() != null && isValidLastOil
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -275,8 +278,17 @@ fun VehicleFormDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     visualTransformation = ThousandSeparatorVisualTransformation(),
                     singleLine = true,
+                    isError = lastOil != null && lastOil > currentOdometer,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                if (lastOil != null && lastOil > currentOdometer) {
+                    Text(
+                        "El último cambio no puede ser mayor al odómetro actual",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
 
                 Text(
                     text = "Frecuencia / Intervalo de cambio",

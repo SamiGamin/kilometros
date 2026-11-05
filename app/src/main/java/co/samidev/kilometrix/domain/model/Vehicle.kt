@@ -3,7 +3,8 @@ package co.samidev.kilometrix.domain.model
 enum class OilStatus {
     OK,
     SOON,
-    EXPIRED
+    EXPIRED,
+    NO_DATA
 }
 
 data class Vehicle(
@@ -39,7 +40,7 @@ data class Vehicle(
 
     val oilStatus: OilStatus
         get() = when {
-            lastOilChangeKm == null -> OilStatus.OK
+            lastOilChangeKm == null -> OilStatus.NO_DATA
             remainingOilKm < 0 -> OilStatus.EXPIRED
             remainingOilKm <= 1000 -> OilStatus.SOON
             else -> OilStatus.OK

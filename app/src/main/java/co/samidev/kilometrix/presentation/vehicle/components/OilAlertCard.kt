@@ -33,29 +33,34 @@ fun OilAlertCard(
 
     val isWarning = status == OilStatus.SOON
     val isExpired = status == OilStatus.EXPIRED
+    val isNoData = status == OilStatus.NO_DATA
 
     val borderBrush = when {
         isExpired -> Brush.linearGradient(listOf(Color(0xFFFF5252), Color(0xFFFF7A00)))
         isWarning -> Brush.linearGradient(listOf(Color(0xFFFF9800), Color(0xFFFFC107)))
+        isNoData -> Brush.linearGradient(listOf(OnSurfaceVariant, OnSurfaceVariant))
         else -> Brush.linearGradient(listOf(Color(0xFF00E676), Color(0xFF00B0FF)))
     }
 
     val cardBg = when {
         isExpired -> Color(0xFF2A141A)
         isWarning -> Color(0xFF2E2213)
+        isNoData -> Color(0xFF1E2430)
         else -> Color(0xFF131B2E)
     }
 
     val titleText = when {
-        lastKm == null -> "Control de Aceite"
+        isNoData -> "Registra tu primer cambio de aceite"
         isExpired -> "¡Cambio de aceite vencido!"
         isWarning -> "¡Cambio de aceite próximo!"
         else -> "Cambio de aceite al día"
     }
 
-    val fractionUsed = if (vehicle.oilIntervalKm > 0 && lastKm != null) {
-        (1f - (remaining.toFloat() / vehicle.oilIntervalKm.toFloat())).coerceIn(0.05f, 1f)
-    } else 0.5f
+    val fractionUsed = when {
+        isNoData -> 0f
+        vehicle.oilIntervalKm > 0 && lastKm != null -> (1f - (remaining.toFloat() / vehicle.oilIntervalKm.toFloat())).coerceIn(0.05f, 1f)
+        else -> 0f
+    }
 
     Box(
         modifier = modifier
@@ -68,7 +73,7 @@ fun OilAlertCard(
         // NEW badge
         Surface(
             shape = RoundedCornerShape(4.dp),
-            color = if (isExpired) Error else Color(0xFFFF9800),
+            color = if (isExpired) Error else if (isNoData) OnSurfaceVariant.copy(alpha = 0.5f) else Color(0xFFFF9800),
             modifier = Modifier.align(Alignment.TopStart)
         ) {
             Text(
@@ -92,7 +97,7 @@ fun OilAlertCard(
                     maxLines = 1,
                     modifier = Modifier.basicMarquee(),
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = if (isExpired) Color(0xFFFF5252) else if (isWarning) Color(0xFFFFB74D) else Color(0xFF00E676)
+                    color = if (isExpired) Color(0xFFFF5252) else if (isWarning) Color(0xFFFFB74D) else if (isNoData) OnSurfaceVariant else Color(0xFF00E676)
                 )
 
                 Text(
@@ -117,21 +122,23 @@ fun OilAlertCard(
                         .clip(RoundedCornerShape(3.dp))
                         .background(Color(0xFF202A3F))
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(fractionUsed)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        Color(0xFF00E676),
-                                        Color(0xFFFFC107),
-                                        Color(0xFFFF5252)
+                    if (!isNoData) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fractionUsed)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF00E676),
+                                            Color(0xFFFFC107),
+                                            Color(0xFFFF5252)
+                                        )
                                     )
                                 )
-                            )
-                    )
+                        )
+                    }
                 }
 
                 Text(
