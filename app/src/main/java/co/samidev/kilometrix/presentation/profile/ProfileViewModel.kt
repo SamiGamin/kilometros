@@ -7,6 +7,7 @@ import co.samidev.kilometrix.domain.repository.UserRepository
 import co.samidev.kilometrix.domain.usecase.GetDriverStatsUseCase
 import co.samidev.kilometrix.domain.usecase.UpdateUserProfileUseCase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -25,7 +26,7 @@ private data class ProfileInternalState(
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    userRepository: UserRepository,
+    private val userRepository: UserRepository,
     getDriverStatsUseCase: GetDriverStatsUseCase,
     private val updateUserProfileUseCase: UpdateUserProfileUseCase,
     private val auth: FirebaseAuth,
@@ -184,23 +185,27 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun updateMaintenanceReserve(percent: Int) {
-        val currentProfile = uiState.value.profile ?: return
-        updateProfile(
-            name = currentProfile.name,
-            city = currentProfile.city,
-            platforms = currentProfile.platforms,
-            maintenanceReservePercent = percent
-        )
+        viewModelScope.launch {
+            _internalState.update { it.copy(isSaving = true) }
+            val result = userRepository.updateMaintenanceReservePercent(percent)
+            _internalState.update { it.copy(isSaving = false) }
+            if (result.isSuccess) {
+                _eventChannel.send(ProfileUiEvent.ShowSnackbar("Reserva actualizada a $percent%"))
+            } else {
+                _eventChannel.send(ProfileUiEvent.ShowSnackbar(
+                    result.exceptionOrNull()?.message ?: "Error al actualizar reserva"
+                ))
+            }
+        }
     }
 
-    fun signOut(onComplete: () -> Unit) {
+    fun signOut() {
         viewModelScope.launch {
             _internalState.update { it.copy(isLoading = true) }
             try {
                 auth.signOut()
                 _internalState.update { it.copy(isLoading = false) }
                 _eventChannel.send(ProfileUiEvent.SignedOut)
-                onComplete()
             } catch (e: Exception) {
                 _internalState.update { it.copy(isLoading = false) }
                 _eventChannel.send(ProfileUiEvent.ShowSnackbar(e.message ?: "Error al cerrar sesión"))
@@ -208,31 +213,33 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun deleteAccount(onComplete: () -> Unit) {
+    fun deleteAccount() {
         viewModelScope.launch {
             _internalState.update { it.copy(isLoading = true) }
             try {
                 val currentUser = auth.currentUser
-                if (currentUser != null) {
-                    val uid = currentUser.uid
-                    // 1. Delete vehicles in user's subcollection
-                    val vehicles = db.collection("users").document(uid).collection("vehicles").get().await()
-                    for (doc in vehicles.documents) {
-                        doc.reference.delete().await()
-                    }
-                    // 2. Delete user profile document
-                    db.collection("users").document(uid).delete().await()
-
-                    // 3. Delete Firebase Auth user
-                    currentUser.delete().await()
-
-                    _internalState.update { it.copy(isLoading = false) }
-                    _eventChannel.send(ProfileUiEvent.AccountDeleted)
-                    onComplete()
-                } else {
+                if (currentUser == null) {
                     _internalState.update { it.copy(isLoading = false) }
                     _eventChannel.send(ProfileUiEvent.ShowSnackbar("No hay sesión activa para eliminar"))
+                    return@launch
                 }
+                val uid = currentUser.uid
+                val userRef = db.collection("users").document(uid)
+
+                // 1. Borrar subcolecciones en cascada (Firestore NO las borra automáticamente)
+                val subcollections = listOf("workShifts", "expenses", "transactions", "wallets", "vehicles")
+                for (sub in subcollections) {
+                    deleteSubcollectionInBatches(userRef.collection(sub))
+                }
+
+                // 2. Borrar el doc del user
+                userRef.delete().await()
+
+                // 3. Borrar la cuenta de Auth
+                currentUser.delete().await()
+
+                _internalState.update { it.copy(isLoading = false) }
+                _eventChannel.send(ProfileUiEvent.AccountDeleted)
             } catch (e: Exception) {
                 _internalState.update { it.copy(isLoading = false) }
                 _eventChannel.send(
@@ -241,6 +248,16 @@ class ProfileViewModel @Inject constructor(
                     )
                 )
             }
+        }
+    }
+
+    private suspend fun deleteSubcollectionInBatches(collection: CollectionReference) {
+        while (true) {
+            val snapshot = collection.limit(499).get().await()
+            if (snapshot.isEmpty) break
+            val batch = db.batch()
+            snapshot.documents.forEach { batch.delete(it.reference) }
+            batch.commit().await()
         }
     }
 }

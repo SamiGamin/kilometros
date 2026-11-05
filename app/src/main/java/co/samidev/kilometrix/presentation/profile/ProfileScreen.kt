@@ -477,7 +477,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
 
             // 5. Account Action Buttons
             Button(
-                onClick = { viewModel.signOut(onLogout) },
+                onClick = { viewModel.signOut() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
@@ -570,7 +570,7 @@ fun ProfileScreen(onLogout: () -> Unit) {
                     onClick = {
                         showDeleteConfirmation = false
                         confirmText = ""
-                        viewModel.deleteAccount(onLogout)
+                        viewModel.deleteAccount()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Error),
                     enabled = isConfirmEnabled
