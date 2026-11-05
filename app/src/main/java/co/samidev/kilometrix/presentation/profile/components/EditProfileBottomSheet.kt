@@ -29,24 +29,17 @@ private val currencyFormatter: NumberFormat = NumberFormat.getNumberInstance(Loc
     .also { (it as? DecimalFormat)?.applyPattern("#,###") }
 
 private val CITIES_COLOMBIA = listOf(
-    "Bogotá",
-    "Medellín",
-    "Cali",
-    "Barranquilla",
-    "Bucaramanga",
-    "Cartagena",
-    "Manizales",
-    "Pereira",
-    "Cúcuta",
-    "Santa Marta",
-    "Villavicencio",
-    "Ibagué",
-    "Pasto",
-    "Armenia",
-    "Montería",
-    "Neiva",
-    "Popayán",
-    "Tunja",
+    // Capitales principales
+    "Bogotá", "Medellín", "Cali", "Barranquilla", "Cartagena",
+    "Cúcuta", "Soledad", "Ibagué", "Bucaramanga", "Soacha",
+    "Santa Marta", "Villavicencio", "Pereira", "Bello", "Valledupar",
+    "Montería", "Sincelejo", "Pasto", "Manizales", "Neiva",
+    "Palmira", "Armenia", "Popayán", "Floridablanca", "Itagüí",
+    "Tunja", "Riohacha", "Sogamoso", "Yopal", "Quibdó",
+    // Área metropolitana de las principales (con Pico y Placa)
+    "Envigado", "Sabaneta", "Girón", "Piedecuesta", "Dosquebradas",
+    "Chía", "Cota", "La Calera", "Funza", "Madrid",
+    // Fallback
     "Otra"
 )
 
