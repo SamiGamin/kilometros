@@ -49,8 +49,12 @@ interface WorkShiftRepository {
         obdCutoffSec: Double = 0.0,
         obdFuelFactorEwma: Double = 1.0,
         obdFuelFactorStdev: Double = 0.0,
-        obdDistFactorMedian: Double = 1.0
+        obdDistFactorMedian: Double = 1.0,
+        netElevationChangeMeters: Int? = null
     ): Result<Unit>
+
+    /** Actualiza la altitud inicial en metros (GPS) al comenzar el turno. */
+    suspend fun updateShiftStartAltitude(shiftId: String, altitudeMeters: Double?): Result<Unit>
 
     /** Agrega una ganancia al array `earnings` del turno (arrayUnion). */
     suspend fun addEarning(shiftId: String, earning: ShiftEarning): Result<Unit>

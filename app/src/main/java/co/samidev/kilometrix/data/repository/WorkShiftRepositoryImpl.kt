@@ -175,7 +175,8 @@ class WorkShiftRepositoryImpl @Inject constructor(
         obdCutoffSec: Double,
         obdFuelFactorEwma: Double,
         obdFuelFactorStdev: Double,
-        obdDistFactorMedian: Double
+        obdDistFactorMedian: Double,
+        netElevationChangeMeters: Int?
     ): Result<Unit> {
         val userId = auth.currentUser?.uid ?: return Result.failure(Exception("Sin sesión"))
         return try {
@@ -218,7 +219,8 @@ class WorkShiftRepositoryImpl @Inject constructor(
                     "obdSampleCount" to obdSampleCount,
                     "obdMeanDtMs" to obdMeanDtMs,
                     "obdIdleSec" to obdIdleSec,
-                    "obdCutoffSec" to obdCutoffSec
+                    "obdCutoffSec" to obdCutoffSec,
+                    "netElevationChangeMeters" to netElevationChangeMeters
                 )
             )
 
@@ -279,6 +281,17 @@ class WorkShiftRepositoryImpl @Inject constructor(
             }
 
             batch.commit().await()
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    override suspend fun updateShiftStartAltitude(shiftId: String, altitudeMeters: Double?): Result<Unit> {
+        if (altitudeMeters == null) return Result.success(Unit)
+        val userId = auth.currentUser?.uid ?: return Result.success(Unit)
+        return try {
+            shiftsCol(userId).document(shiftId)
+                .update("startAltitudeMeters", altitudeMeters)
+                .await()
             Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -550,7 +563,9 @@ private fun DocumentSnapshot.toWorkShift(): WorkShift? {
             obdSampleCount = getLong("obdSampleCount")?.toInt() ?: 0,
             obdMeanDtMs = getDouble("obdMeanDtMs") ?: 0.0,
             obdIdleSec = getDouble("obdIdleSec") ?: 0.0,
-            obdCutoffSec = getDouble("obdCutoffSec") ?: 0.0
+            obdCutoffSec = getDouble("obdCutoffSec") ?: 0.0,
+            startAltitudeMeters = getDouble("startAltitudeMeters"),
+            netElevationChangeMeters = getLong("netElevationChangeMeters")?.toInt()
         )
     } catch (_: Exception) { null }
 }
