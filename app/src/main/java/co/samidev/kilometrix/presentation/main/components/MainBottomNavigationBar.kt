@@ -36,6 +36,7 @@ fun MainBottomNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .background(SurfaceContainerLowest)
+            .navigationBarsPadding()
     ) {
         HorizontalDivider(color = OutlineVariant.copy(alpha = 0.4f), thickness = 1.dp)
         Row(

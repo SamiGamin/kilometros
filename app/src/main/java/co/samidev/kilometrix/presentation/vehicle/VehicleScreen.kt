@@ -57,7 +57,6 @@ fun VehicleScreen() {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Spacer(Modifier.height(12.dp))
 
         // Header
         VehicleHeader(

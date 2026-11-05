@@ -43,7 +43,6 @@ fun AnalyticsScreen(viewModel: AnalyticsViewModel = hiltViewModel()) {
             .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Spacer(Modifier.height(48.dp))
 
         Text("Análisis e Historial", style = MaterialTheme.typography.headlineMedium, color = OnSurface)
 

@@ -135,7 +135,6 @@ fun TransactionsScreen(
             .fillMaxSize()
             .background(Background)
     ) {
-        Spacer(Modifier.height(48.dp))
 
         // ── Header ─────────────────────────────────────────────────────────────
         Row(

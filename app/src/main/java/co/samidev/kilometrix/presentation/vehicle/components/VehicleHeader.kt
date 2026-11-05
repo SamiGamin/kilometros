@@ -26,21 +26,7 @@ fun VehicleHeader(
     onAddClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = "kilometrix",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp
-            ),
-            color = Primary,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
-
-        Row(
+    Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -90,6 +76,5 @@ fun VehicleHeader(
                     )
                 }
             }
-        }
     }
 }

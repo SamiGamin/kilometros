@@ -85,7 +85,8 @@ fun ProfileScreen(onLogout: () -> Unit) {
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        containerColor = Background
+        containerColor = Background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         Column(
             modifier = Modifier

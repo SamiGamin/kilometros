@@ -99,13 +99,27 @@ fun MainScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Background
+        containerColor = Background,
+        bottomBar = {
+            MainBottomNavigationBar(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it }
+            )
+        },
+        floatingActionButton = {
+            MainFloatingActionButton(
+                visible = isFabVisible && selectedTab != MainTab.PROFILE && selectedTab != MainTab.VEHICLE,
+                onClick = { showFabSheet = true }
+            )
+        },
+        floatingActionButtonPosition = FabPosition.End
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Background)
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
                 .nestedScroll(nestedScrollConnection)
         ) {
             // ── Content with AnimatedContent slide transition ──────────────────
@@ -127,9 +141,7 @@ fun MainScreen(
                     ) + fadeOut(tween(150)))
                 },
                 label = "tabContent",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 72.dp)
+                modifier = Modifier.fillMaxSize()
             ) { tab ->
                 when (tab) {
                     MainTab.HOME -> HomeScreen(
@@ -156,21 +168,7 @@ fun MainScreen(
                 )
             }
 
-            // ── FAB with entrance animation ────────────────────────────────────
-            MainFloatingActionButton(
-                visible = isFabVisible && selectedTab != MainTab.PROFILE && selectedTab != MainTab.VEHICLE,
-                onClick = { showFabSheet = true },
-                modifier = Modifier.align(Alignment.BottomEnd)
-            )
-
-            // ── Bottom navigation bar ──────────────────────────────────────────
-            MainBottomNavigationBar(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
-
-            // ── Update Available Dialog ─────────────────────────────────────────
+                        // ── Update Available Dialog ─────────────────────────────────────────
             if (appUpdateUiState !is AppUpdateUiState.Idle && appUpdateUiState !is AppUpdateUiState.Checking) {
                 UpdateAvailableDialog(
                     uiState = appUpdateUiState,

@@ -46,3 +46,4 @@ roadmap.md
 walkthrough.md
 **/*serviceAccountKey*
 scraper/pico-y-placa-export.json
+patch-*.js
