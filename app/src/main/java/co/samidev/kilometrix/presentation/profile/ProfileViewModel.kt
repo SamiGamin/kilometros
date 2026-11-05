@@ -92,12 +92,10 @@ class ProfileViewModel @Inject constructor(
         }.distinctUntilChanged()
 
     val uiState: StateFlow<ProfileScreenUiState> = combine(
-        userRepository.getUserProfile(),
-        getDriverStatsUseCase(),
-        _internalState,
-        _walletsList,
-        _selectedKipuWalletId
-    ) { profile, stats, internal, wallets, selectedWalletId ->
+        combine(userRepository.getUserProfile(), getDriverStatsUseCase(), ::Pair),
+        combine(_internalState, _walletsList, _selectedKipuWalletId, ::Triple),
+        maintenanceReserveFlow
+    ) { (profile, stats), (internal, wallets, selectedWalletId), maintenanceSnapshot ->
         val effectiveSelected = selectedWalletId ?: wallets.firstOrNull {
             val name = it.name.lowercase()
             name.contains("trabajo") || name.contains("kilometrix")
@@ -111,7 +109,12 @@ class ProfileViewModel @Inject constructor(
             isEditSheetOpen = internal.isEditSheetOpen,
             kipuWallets = wallets,
             selectedKipuWalletId = effectiveSelected,
-            isRefreshingWallets = internal.isRefreshingWallets
+            isRefreshingWallets = internal.isRefreshingWallets,
+            maintenanceReserveProvisionedCop = maintenanceSnapshot?.provisionedCop ?: 0.0,
+            maintenanceReserveUsedCop = maintenanceSnapshot?.usedCop ?: 0.0,
+            maintenanceReserveBalanceCop = maintenanceSnapshot?.balanceCop ?: 0.0,
+            maintenanceReserveHasData = maintenanceSnapshot?.hasData ?: false,
+            maintenanceReserveVehicleName = if (stats.activeVehicleName != "Sin vehículo") stats.activeVehicleName else ""
         )
     }.stateIn(
         scope = viewModelScope,

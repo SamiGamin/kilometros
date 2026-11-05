@@ -12,5 +12,11 @@ data class ProfileScreenUiState(
     val isEditSheetOpen: Boolean = false,
     val kipuWallets: List<KipuWalletSummary> = emptyList(),
     val selectedKipuWalletId: String? = null,
-    val isRefreshingWallets: Boolean = false
+    val isRefreshingWallets: Boolean = false,
+    // ── Fondo de Mantenimiento histórico (P24b) ──
+    val maintenanceReserveProvisionedCop: Double = 0.0,
+    val maintenanceReserveUsedCop: Double = 0.0,
+    val maintenanceReserveBalanceCop: Double = 0.0,
+    val maintenanceReserveHasData: Boolean = false,
+    val maintenanceReserveVehicleName: String = ""
 )
