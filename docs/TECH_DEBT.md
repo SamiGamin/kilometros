@@ -72,3 +72,19 @@ Ninguno bloquea el uso del Polo Track. Todos son mejoras futuras.
 - Impacto: latente, no bloquea. Solo se manifiesta con >1 vehículo de distinta cilindrada
 - Fix sugerido: agregar `engineDisplacementLiters: Double = 1.598` y `tankCapacityLiters: Double = 52.0` a `Vehicle`, persistir en Firestore junto al resto del `Vehicle`, y pasarlos a `VehicleProfile`/`CalculateFuelEfficiencyUseCase` como parámetros
 - Prioridad: baja (solo cuando se agregue otro vehículo)
+
+## DT-17: Turnos PERSONAL en calibración
+- Estado: CERRADO / WON'T FIX (decisión de diseño).
+- Decisión: Los turnos PERSONAL se incluyen en la calibración de kFuel y kDist.
+- Justificación: La física de la ECU y el rodamiento de llantas es idéntica
+  independientemente del tipo de turno. Excluirlos crearía "huecos" de kilometraje
+  que invalidarían los ciclos por baja cobertura (< 90%).
+- Evidencia: 3 turnos PERSONAL (4-nov) calibraron `kDist` a 1.0049 (+0.49%).
+
+## DT-18: Archivo `serviceAccountKey.json` residual en raíz
+- Estado: ABIERTO.
+- Problema: Un `serviceAccountKey.json` apuntaba a `kilometrix-ia` (base de datos
+  congelada en sep-2026), lo que causó confusión en auditorías previas.
+- Acción requerida: Eliminar el archivo o moverlo a una carpeta de backups no
+  rastreada por git para evitar consultas accidentales al proyecto equivocado.
+
