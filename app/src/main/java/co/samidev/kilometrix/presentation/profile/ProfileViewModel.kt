@@ -193,14 +193,13 @@ class ProfileViewModel @Inject constructor(
         )
     }
 
-    fun signOut(onComplete: () -> Unit) {
+    fun signOut() {
         viewModelScope.launch {
             _internalState.update { it.copy(isLoading = true) }
             try {
                 auth.signOut()
                 _internalState.update { it.copy(isLoading = false) }
                 _eventChannel.send(ProfileUiEvent.SignedOut)
-                onComplete()
             } catch (e: Exception) {
                 _internalState.update { it.copy(isLoading = false) }
                 _eventChannel.send(ProfileUiEvent.ShowSnackbar(e.message ?: "Error al cerrar sesión"))
@@ -208,7 +207,7 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun deleteAccount(onComplete: () -> Unit) {
+    fun deleteAccount() {
         viewModelScope.launch {
             _internalState.update { it.copy(isLoading = true) }
             try {
@@ -228,7 +227,6 @@ class ProfileViewModel @Inject constructor(
 
                     _internalState.update { it.copy(isLoading = false) }
                     _eventChannel.send(ProfileUiEvent.AccountDeleted)
-                    onComplete()
                 } else {
                     _internalState.update { it.copy(isLoading = false) }
                     _eventChannel.send(ProfileUiEvent.ShowSnackbar("No hay sesión activa para eliminar"))
