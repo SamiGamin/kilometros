@@ -3,13 +3,21 @@ package co.samidev.kilometrix.presentation.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.samidev.kilometrix.data.sync.KipuWalletResolver
+import co.samidev.kilometrix.domain.model.VehicleExpense
+import co.samidev.kilometrix.domain.model.WorkShift
+import co.samidev.kilometrix.domain.repository.ActiveVehicleRepository
 import co.samidev.kilometrix.domain.repository.UserRepository
+import co.samidev.kilometrix.domain.usecase.CalculateMaintenanceReserveUseCase
 import co.samidev.kilometrix.domain.usecase.GetDriverStatsUseCase
+import co.samidev.kilometrix.domain.usecase.GetExpensesUseCase
+import co.samidev.kilometrix.domain.usecase.GetWorkShiftsUseCase
+import co.samidev.kilometrix.domain.usecase.MaintenanceReserveSnapshot
 import co.samidev.kilometrix.domain.usecase.UpdateUserProfileUseCase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -24,6 +32,7 @@ private data class ProfileInternalState(
     val isRefreshingWallets: Boolean = false
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
@@ -31,7 +40,11 @@ class ProfileViewModel @Inject constructor(
     private val updateUserProfileUseCase: UpdateUserProfileUseCase,
     private val auth: FirebaseAuth,
     private val db: FirebaseFirestore,
-    private val kipuWalletResolver: KipuWalletResolver
+    private val kipuWalletResolver: KipuWalletResolver,
+    private val getWorkShiftsUseCase: GetWorkShiftsUseCase,
+    private val getExpensesUseCase: GetExpensesUseCase,
+    private val activeVehicleRepository: ActiveVehicleRepository,
+    private val calculateMaintenanceReserveUseCase: CalculateMaintenanceReserveUseCase
 ) : ViewModel() {
 
     private val _internalState = MutableStateFlow(ProfileInternalState())
@@ -61,6 +74,22 @@ class ProfileViewModel @Inject constructor(
             }
         }
     }
+
+    private val maintenanceReserveFlow: Flow<MaintenanceReserveSnapshot?> =
+        combine(
+            userRepository.getUserProfile(),
+            activeVehicleRepository.activeVehicleId,
+            activeVehicleRepository.activeVehicleId.flatMapLatest { vehicleId ->
+                if (vehicleId == null) flowOf(emptyList<WorkShift>() to emptyList<VehicleExpense>())
+                else combine(
+                    getWorkShiftsUseCase(vehicleId),
+                    getExpensesUseCase(vehicleId)
+                ) { shifts, expenses -> shifts to expenses }
+            }
+        ) { profile, _, (shifts, expenses) ->
+            val percent = profile?.maintenanceReservePercent ?: 10
+            calculateMaintenanceReserveUseCase(percent, shifts, expenses)
+        }.distinctUntilChanged()
 
     val uiState: StateFlow<ProfileScreenUiState> = combine(
         userRepository.getUserProfile(),
