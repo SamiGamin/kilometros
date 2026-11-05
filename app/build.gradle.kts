@@ -17,8 +17,8 @@ android {
         applicationId = "co.samidev.kilometrix"
         minSdk = 30
         targetSdk = 37
-        versionCode = 9
-        versionName = "1.0.11"
+        versionCode = 10
+        versionName = "1.0.12"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
