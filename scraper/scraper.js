@@ -179,7 +179,7 @@ async function scrapeCityData(city) {
       
       if (catLower.includes('particular')) {
         vehicle_type = "PARTICULAR";
-      } else if (catLower.includes('moto')) {
+      } else if (catLower.includes('moto') && !catLower.includes('motocarro')) {
         vehicle_type = "MOTO";
       } else if (catLower.includes('taxi')) {
         vehicle_type = "TAXI";
@@ -312,7 +312,7 @@ async function run() {
     dataFinal.cities.forEach(city => {
       const seen = new Set();
       city.restrictions = city.restrictions.filter(r => {
-        const key = `${r.vehicle_type}|${r.schedule}`;
+        const key = r.vehicle_type;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
